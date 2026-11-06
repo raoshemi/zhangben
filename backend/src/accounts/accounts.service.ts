@@ -57,6 +57,30 @@ export class AccountsService {
     });
   }
 
+  /** 彻底删除账套（仅当账套内没有任何凭证时允许；有凭证请用归档） */
+  async deleteBook(id: number) {
+    await this.getBook(id);
+    const voucherCount = await this.prisma.voucher.count({
+      where: { bookId: id },
+    });
+    if (voucherCount > 0) {
+      throw new BadRequestException(
+        `该账套已有 ${voucherCount} 张凭证，不能删除；如需停用请改用「归档」`,
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.accountBalance.deleteMany({ where: { bookId: id } });
+      await tx.asset.deleteMany({ where: { bookId: id } });
+      await tx.reportTemplate.deleteMany({ where: { bookId: id } });
+      await tx.period.deleteMany({ where: { bookId: id } });
+      await tx.auxiliaryItem.deleteMany({ where: { bookId: id } });
+      await tx.cashFlowItem.deleteMany({ where: { bookId: id } });
+      await tx.account.deleteMany({ where: { bookId: id } });
+      await tx.accountBook.delete({ where: { id } });
+    });
+    return { ok: true };
+  }
+
   async createBook(dto: CreateBookDto) {
     const book = await this.prisma.accountBook.create({
       data: {

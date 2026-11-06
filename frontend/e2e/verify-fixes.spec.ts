@@ -147,6 +147,10 @@ test.describe('回归验证', () => {
     const list2 = await request.get('/api/books', { headers });
     const ids2 = ((await list2.json()) as { id: number }[]).map((b) => b.id);
     expect(ids2).toContain(bookId);
+
+    // 清理：该临时账套无凭证，可彻底删除，避免污染开发库
+    const deleted = await request.delete(`/api/books/${bookId}`, { headers });
+    expect(deleted.ok()).toBeTruthy();
   });
 
   test('viewer 角色不能创建凭证（403，越权修复）', async ({ request }) => {

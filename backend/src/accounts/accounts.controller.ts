@@ -60,6 +60,13 @@ export class AccountsController {
     return this.service.restoreBook(id);
   }
 
+  /** 彻底删除账套（有凭证时禁止，需改用归档） */
+  @Roles('admin')
+  @Delete('books/:id')
+  deleteBook(@Param('id', ParseIntPipe) id: number) {
+    return this.service.deleteBook(id);
+  }
+
   // 科目
   @Get('accounts')
   listAccounts(@Query('bookId', ParseIntPipe) bookId: number) {
