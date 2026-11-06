@@ -19,14 +19,42 @@ export class AccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ---------------- 账套 ----------------
-  listBooks() {
-    return this.prisma.accountBook.findMany({ orderBy: { id: 'asc' } });
+  listBooks(includeArchived = false) {
+    return this.prisma.accountBook.findMany({
+      where: includeArchived ? {} : { isActive: true },
+      orderBy: { id: 'asc' },
+    });
   }
 
   async getBook(id: number) {
     const book = await this.prisma.accountBook.findUnique({ where: { id } });
     if (!book) throw new NotFoundException('账套不存在');
     return book;
+  }
+
+  /** 归档：置为停用，保留全部历史数据 */
+  async archiveBook(id: number) {
+    const book = await this.getBook(id);
+    if (!book.isActive) return book;
+    const activeCount = await this.prisma.accountBook.count({
+      where: { isActive: true },
+    });
+    if (activeCount <= 1) {
+      throw new BadRequestException('至少保留一个启用中的账套，不能归档最后一个');
+    }
+    return this.prisma.accountBook.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
+  /** 重新启用 */
+  async restoreBook(id: number) {
+    await this.getBook(id);
+    return this.prisma.accountBook.update({
+      where: { id },
+      data: { isActive: true },
+    });
   }
 
   async createBook(dto: CreateBookDto) {

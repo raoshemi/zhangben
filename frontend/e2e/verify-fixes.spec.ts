@@ -106,4 +106,46 @@ test.describe('回归验证', () => {
     await gotoMenu(page, '凭证管理');
     expect(await page.locator('.ant-picker-range input').count()).toBe(2);
   });
+
+  test('账套归档与重新启用（API 全链路）', async ({ request }) => {
+    const loginRes = await request.post('/api/auth/login', {
+      data: { username: 'admin', password: 'admin123' },
+    });
+    const token = (await loginRes.json()).access_token as string;
+    const headers = { Authorization: `Bearer ${token}` };
+
+    // 新建一个临时账套
+    const created = await request.post('/api/books', {
+      headers,
+      data: {
+        name: `归档验证${Date.now()}`,
+        accountingStandard: 'small',
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+    const bookId = (await created.json()).id as number;
+
+    // 归档
+    const archived = await request.post(`/api/books/${bookId}/archive`, { headers });
+    expect(archived.ok()).toBeTruthy();
+
+    // 默认列表（只含启用）不应包含
+    const activeList = await request.get('/api/books', { headers });
+    const activeIds = ((await activeList.json()) as { id: number }[]).map((b) => b.id);
+    expect(activeIds).not.toContain(bookId);
+
+    // includeArchived 应包含
+    const allList = await request.get('/api/books?includeArchived=true', { headers });
+    const allIds = ((await allList.json()) as { id: number }[]).map((b) => b.id);
+    expect(allIds).toContain(bookId);
+
+    // 重新启用
+    const restored = await request.post(`/api/books/${bookId}/restore`, { headers });
+    expect(restored.ok()).toBeTruthy();
+    const list2 = await request.get('/api/books', { headers });
+    const ids2 = ((await list2.json()) as { id: number }[]).map((b) => b.id);
+    expect(ids2).toContain(bookId);
+  });
 });

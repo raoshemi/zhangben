@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -35,7 +36,7 @@ interface BookFormValues {
 }
 
 export default function Books() {
-  const { books, loading, error, reload } = useBooks();
+  const { books, loading, error, reload } = useBooks(true);
   const { isReadOnly } = useRole();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +69,26 @@ export default function Books() {
     }
   };
 
+  const archive = async (id: number) => {
+    try {
+      await api.post(`/books/${id}/archive`);
+      message.success('账套已归档，历史数据保留可查');
+      reload();
+    } catch (e) {
+      message.error(errorMessage(e, '归档失败'));
+    }
+  };
+
+  const restore = async (id: number) => {
+    try {
+      await api.post(`/books/${id}/restore`);
+      message.success('账套已重新启用');
+      reload();
+    } catch (e) {
+      message.error(errorMessage(e, '启用失败'));
+    }
+  };
+
   const columns: ColumnsType<Book> = useMemo(
     () => [
       {
@@ -76,7 +97,7 @@ export default function Books() {
         render: (v: string, r) => (
           <Space size={6}>
             <span style={{ fontWeight: 600 }}>{v}</span>
-            {r.isActive === false && <Tag color="red">已停用</Tag>}
+            {r.isActive === false && <Tag color="orange">已归档</Tag>}
           </Space>
         ),
       },
@@ -103,8 +124,35 @@ export default function Books() {
               )}`
             : <Text type="secondary">—</Text>,
       },
+      {
+        title: '操作',
+        key: 'actions',
+        width: 110,
+        render: (_, r) =>
+          r.isActive === false ? (
+            <Button
+              size="small"
+              type="primary"
+              disabled={isReadOnly}
+              onClick={() => void restore(r.id)}
+            >
+              重新启用
+            </Button>
+          ) : (
+            <Popconfirm
+              title="归档后该账套不能再录入凭证（历史数据保留，可继续查询），确认归档？"
+              okText="归档"
+              cancelText="取消"
+              onConfirm={() => void archive(r.id)}
+            >
+              <Button size="small" danger disabled={isReadOnly}>
+                归档
+              </Button>
+            </Popconfirm>
+          ),
+      },
     ],
-    [],
+    [isReadOnly],
   );
 
   return (

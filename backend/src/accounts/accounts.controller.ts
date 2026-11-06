@@ -25,8 +25,8 @@ export class AccountsController {
 
   // 账套
   @Get('books')
-  listBooks() {
-    return this.service.listBooks();
+  listBooks(@Query('includeArchived') includeArchived?: string) {
+    return this.service.listBooks(includeArchived === 'true');
   }
 
   @Get('books/:id')
@@ -44,6 +44,20 @@ export class AccountsController {
   @Patch('books/:id')
   updateBook(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBookDto) {
     return this.service.updateBook(id, dto);
+  }
+
+  /** 归档账套：归档后不再出现在启用列表，不能再录入凭证，但历史数据保留可查 */
+  @Roles('admin')
+  @Post('books/:id/archive')
+  archiveBook(@Param('id', ParseIntPipe) id: number) {
+    return this.service.archiveBook(id);
+  }
+
+  /** 重新启用已归档账套 */
+  @Roles('admin')
+  @Post('books/:id/restore')
+  restoreBook(@Param('id', ParseIntPipe) id: number) {
+    return this.service.restoreBook(id);
   }
 
   // 科目

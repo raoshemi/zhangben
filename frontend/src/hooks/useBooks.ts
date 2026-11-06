@@ -27,7 +27,7 @@ export interface BooksState {
  * 账套列表统一入口：全局只请求 GET /books（契约不变），
  * 各页面共用同一份 shape，避免出现 /books 与 /ledgers/books 两套字段。
  */
-export function useBooks(): BooksState {
+export function useBooks(includeArchived = false): BooksState {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,9 @@ export function useBooks(): BooksState {
     let cancelled = false;
     setLoading(true);
     api
-      .get<Book[]>('/books')
+      .get<Book[]>('/books', {
+        params: includeArchived ? { includeArchived: 'true' } : undefined,
+      })
       .then(({ data }) => {
         if (cancelled) return;
         setBooks(toArray(data) as Book[]);
@@ -54,7 +56,7 @@ export function useBooks(): BooksState {
     return () => {
       cancelled = true;
     };
-  }, [tick]);
+  }, [tick, includeArchived]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const defaultBookId = useMemo(() => books[0]?.id, [books]);

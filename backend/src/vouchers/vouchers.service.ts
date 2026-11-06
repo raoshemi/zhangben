@@ -556,6 +556,14 @@ export class VouchersService {
   }
 
   private async assertPeriodOpen(tx: Tx, bookId: number, period: string) {
+    // 归档账套禁止任何记账操作（查询不受影响）
+    const book = await tx.accountBook.findUnique({
+      where: { id: bookId },
+      select: { isActive: true },
+    });
+    if (!book?.isActive) {
+      throw new BadRequestException('账套已归档，禁止新增或修改凭证');
+    }
     const p = await tx.period.findUnique({
       where: { bookId_period: { bookId, period } },
     });
