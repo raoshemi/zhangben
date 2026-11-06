@@ -27,7 +27,7 @@ import api from '../api/client';
 import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
-import { useBooks } from '../hooks/useBooks';
+import { useBook } from '../context/BookContext';
 import { STANDARD_LABEL, errorMessage } from '../lib/format';
 
 interface ReportRow {
@@ -121,8 +121,7 @@ const columns: ColumnsType<ReportRow> = [
 ];
 
 export default function Reports() {
-  const { books, loading: booksLoading } = useBooks();
-  const [bookId, setBookId] = useState<number>();
+  const { books, bookId, setBookId, loading: booksLoading } = useBook();
   const [period, setPeriod] = useState<Dayjs | null>(dayjs());
   const [activeTab, setActiveTab] = useState<TabKey>('balance');
 
@@ -195,16 +194,11 @@ export default function Reports() {
     [bookId, period, fetchReport],
   );
 
-  // 首次进入自动加载默认账套的本期报表：少一次点击，也能立刻暴露后端未初始化的账套
-  const autoRanRef = useRef(false);
+  // 账套/期间变化时自动加载本期报表（账套已全局选择，跟随顶栏切换）
   useEffect(() => {
-    if (autoRanRef.current) return;
-    if (!books.length) return;
-    autoRanRef.current = true;
-    const first = books[0];
-    setBookId(first.id);
-    void runQuery(first.id, period);
-  }, [books, period, runQuery]);
+    if (!bookId || !period) return;
+    void runQuery(bookId, period);
+  }, [bookId, period, runQuery]);
 
   const retryTab = async (key: TabKey) => {
     if (!bookId || !period) return;

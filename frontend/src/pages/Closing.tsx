@@ -17,7 +17,7 @@ import api from '../api/client';
 import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
-import { useBooks } from '../hooks/useBooks';
+import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
 import { errorMessage } from '../lib/format';
 
@@ -38,18 +38,13 @@ const ACTION_LABEL: Record<'profit-transfer' | 'close' | 'reopen', string> = {
 };
 
 export default function Closing() {
-  const { books, loading: booksLoading } = useBooks();
+  const { books, bookId, setBookId, loading: booksLoading } = useBook();
   const { isReadOnly, canRunClosing } = useRole();
 
-  const [bookId, setBookId] = useState<number>();
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [acting, setActing] = useState<string>();
-
-  useEffect(() => {
-    if (bookId == null && books.length) setBookId(books[0].id);
-  }, [books, bookId]);
 
   const loadPeriods = useCallback(async () => {
     if (bookId == null) return;

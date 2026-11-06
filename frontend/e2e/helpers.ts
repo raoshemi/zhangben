@@ -12,6 +12,17 @@ export async function login(page: Page, username: string, password: string) {
   await page.fill('input[placeholder="密码"]', password);
   await page.click('button[type="submit"]');
   await expect(page.getByRole('heading', { name: '仪表盘' })).toBeVisible();
+  // 全局账套强制选择：登录后若未选账套，弹窗要求先选
+  const modal = page.locator('.ant-modal').filter({ hasText: '请选择账套' });
+  try {
+    await modal.waitFor({ state: 'visible', timeout: 3000 });
+    await modal.locator('.ant-select').click();
+    await page.locator('.ant-select-item-option').first().click();
+    await modal.getByRole('button', { name: /进入账套/ }).click();
+    await modal.waitFor({ state: 'hidden', timeout: 5000 });
+  } catch {
+    // 已选过账套（localStorage 持久化）或非首次登录
+  }
 }
 
 export async function logout(page: Page) {

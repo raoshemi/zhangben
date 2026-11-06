@@ -7,7 +7,7 @@ import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useAccounts, type Account } from '../hooks/useAccounts';
-import { useBooks } from '../hooks/useBooks';
+import { useBook } from '../context/BookContext';
 import { ACCOUNT_CATEGORY_COLOR, ACCOUNT_CATEGORY_LABEL, AUX_TYPE_LABEL } from '../lib/format';
 
 const { Text } = Typography;
@@ -22,17 +22,12 @@ const categoryOptions = Object.entries(ACCOUNT_CATEGORY_LABEL).map(([value, labe
 }));
 
 export default function Accounts() {
-  const { books, loading: booksLoading } = useBooks();
-  const [bookId, setBookId] = useState<number>();
+  const { books, bookId, setBookId, loading: booksLoading } = useBook();
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState<string>();
   const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
 
   const { accounts, loading, error, reload } = useAccounts(bookId);
-
-  useEffect(() => {
-    if (bookId == null && books.length) setBookId(books[0].id);
-  }, [books, bookId]);
 
   // 默认展开所有汇总科目，让「一级 → 明细」的层级关系一眼可见
   useEffect(() => {

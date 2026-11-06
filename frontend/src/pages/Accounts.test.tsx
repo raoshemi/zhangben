@@ -13,8 +13,8 @@ describe('Accounts 会计科目', () => {
     (api.get as jest.Mock).mockResolvedValue({ data: [] });
   });
 
-  it('渲染账套选择器', async () => {
+  it('渲染页面标题与账套选择器', async () => {
     render(<Accounts />);
-    expect(await screen.findByText('选择账套')).toBeInTheDocument();
+    expect(await screen.findByText('会计科目')).toBeInTheDocument();
   });
 });

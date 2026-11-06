@@ -16,6 +16,7 @@ import Assets from './pages/Assets';
 import VoucherPrint from './pages/VoucherPrint';
 import ReportPrint from './pages/ReportPrint';
 import { useRole } from './hooks/useRole';
+import { BookProvider } from './context/BookContext';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const token = localStorage.getItem('token');
@@ -55,7 +56,9 @@ export default function App() {
         path="/"
         element={
           <RequireAuth>
-            <MainLayout />
+            <BookProvider>
+              <MainLayout />
+            </BookProvider>
           </RequireAuth>
         }
       >

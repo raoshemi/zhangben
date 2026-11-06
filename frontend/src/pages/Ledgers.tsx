@@ -21,7 +21,7 @@ import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useAccounts } from '../hooks/useAccounts';
-import { useBooks } from '../hooks/useBooks';
+import { useBook } from '../context/BookContext';
 import { errorMessage } from '../lib/format';
 
 interface BalanceRow {
@@ -121,8 +121,7 @@ const balanceColumns: ColumnsType<BalanceRow> = [
 const dirText = (d: string) => (d === 'debit' ? '借' : '贷');
 
 export default function Ledgers() {
-  const { books, loading: booksLoading } = useBooks();
-  const [bookId, setBookId] = useState<number>();
+  const { books, bookId, setBookId, loading: booksLoading } = useBook();
   const [period, setPeriod] = useState<string>(dayjs().format('YYYY-MM'));
   const [tab, setTab] = useState('general');
 
@@ -138,10 +137,6 @@ export default function Ledgers() {
   const [error, setError] = useState<string>();
 
   const { leafAccounts, loading: accountsLoading } = useAccounts(bookId);
-
-  useEffect(() => {
-    if (bookId == null && books.length) setBookId(books[0].id);
-  }, [books, bookId]);
 
   const load = useCallback(async () => {
     if (bookId == null) return;

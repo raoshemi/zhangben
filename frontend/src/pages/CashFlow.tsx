@@ -20,7 +20,7 @@ import api from '../api/client';
 import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
-import { useBooks } from '../hooks/useBooks';
+import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
 import { errorMessage, toArray } from '../lib/format';
 
@@ -52,10 +52,9 @@ const categoryOptions = Object.entries(categoryLabel).map(([value, label]) => ({
 }));
 
 export default function CashFlow() {
-  const { books, loading: booksLoading } = useBooks();
+  const { books, bookId, setBookId, loading: booksLoading } = useBook();
   const { isReadOnly } = useRole();
 
-  const [bookId, setBookId] = useState<number>();
   const [category, setCategory] = useState<string>();
   const [keyword, setKeyword] = useState('');
   const [items, setItems] = useState<CashFlowItem[]>([]);
@@ -64,10 +63,6 @@ export default function CashFlow() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
-
-  useEffect(() => {
-    if (bookId == null && books.length) setBookId(books[0].id);
-  }, [books, bookId]);
 
   const load = useCallback(async () => {
     if (!bookId) return;

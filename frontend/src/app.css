@@ -1,0 +1,14 @@
+/* 凭证方向 Segmented：强化选中项，弱化未选中项 */
+.voucher-dir .ant-segmented {
+  background: #f0f0f0;
+  padding: 2px;
+}
+.voucher-dir .ant-segmented-item-selected {
+  background: #1677ff !important;
+  color: #fff !important;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.voucher-dir .ant-segmented-item:not(.ant-segmented-item-selected) {
+  color: rgba(0, 0, 0, 0.35);
+}

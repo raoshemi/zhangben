@@ -21,7 +21,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
 import BookSelect from '../components/BookSelect';
 import PageHeader from '../components/PageHeader';
-import { useBooks } from '../hooks/useBooks';
+import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
 import { VOUCHER_STATUS, errorMessage } from '../lib/format';
 import VoucherEdit from './VoucherEdit';
@@ -53,7 +53,7 @@ function fmtDate(s?: string | null): string {
 }
 
 export default function VoucherList() {
-  const { books, loading: booksLoading } = useBooks();
+  const { books, bookId, setBookId, loading: booksLoading } = useBook();
   const { canApprove, canPost, canVoid } = useRole();
 
   const [data, setData] = useState<Voucher[]>([]);
@@ -62,18 +62,11 @@ export default function VoucherList() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [bookId, setBookId] = useState<number>(1);
   const [period, setPeriod] = useState<string | undefined>();
   const [status, setStatus] = useState<string | undefined>();
   const [keyword, setKeyword] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
-
-  // 账套列表回来后校正初值：默认展示第一个账套，避免"账套 1 不存在"的空列表
-  useEffect(() => {
-    if (!books.length) return;
-    if (!books.some((b) => b.id === bookId)) setBookId(books[0].id);
-  }, [books, bookId]);
 
   const fetchList = useCallback(async () => {
     if (bookId == null) return;
@@ -379,6 +372,8 @@ export default function VoucherList() {
               okText: '放弃并关闭',
               okButtonProps: { danger: true },
               cancelText: '继续录入',
+              // Drawer 与 Modal 默认同为 1000，这里抬高避免确认框被抽屉盖住
+              zIndex: 1100,
               onOk: () => {
                 setDirty(false);
                 setDrawerOpen(false);

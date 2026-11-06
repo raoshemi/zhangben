@@ -495,7 +495,10 @@ export default function VoucherEdit({
         const natural = acc?.balanceSide;
         const opposite = natural != null && r.direction !== natural;
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div
+            className="voucher-dir"
+            style={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+          >
             <Segmented
               size="small"
               block
