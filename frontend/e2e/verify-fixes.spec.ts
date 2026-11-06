@@ -161,4 +161,15 @@ test.describe('回归验证', () => {
     });
     expect(res.status()).toBe(403);
   });
+
+  test('token 失效时自动跳回登录页（不是显示空账套）', async ({ page }) => {
+    await login(page, 'admin', 'admin123');
+    // 模拟会话失效（密钥轮换 / token 过期）
+    await page.evaluate(() => localStorage.setItem('token', 'invalid-token'));
+    await page.goto('/books');
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+    // 本地登录态应被清空
+    const token = await page.evaluate(() => localStorage.getItem('token'));
+    expect(token).toBeNull();
+  });
 });
