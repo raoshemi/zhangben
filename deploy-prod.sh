@@ -8,13 +8,8 @@ cd "$APP_DIR"
 
 COMPOSE="docker compose -f docker-compose.prod.yml"
 
-echo "[deploy-prod] $(date '+%F %T') 拉取最新镜像"
+echo "[deploy-prod] $(date '+%F %T') 拉取最新镜像并重启（后端启动时会自动跑数据库迁移）"
 $COMPOSE pull
-
-echo "[deploy-prod] 执行数据库迁移"
-$COMPOSE --profile tools run --rm migrate
-
-echo "[deploy-prod] 重启服务"
 $COMPOSE up -d --remove-orphans
 
 echo "[deploy-prod] 清理旧镜像"

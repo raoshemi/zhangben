@@ -54,17 +54,5 @@ services:
       - '3000:80'
     restart: unless-stopped
 
-  # 一次性迁移：docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
-  migrate:
-    image: ghcr.io/raoshemi/zhangben/migrate:latest
-    container_name: zhangben-migrate
-    environment:
-      DATABASE_URL: postgresql://zhangben:${POSTGRES_PASSWORD:-zhangben}@db:5432/zhangben?schema=public
-      TZ: Asia/Shanghai
-    depends_on:
-      db:
-        condition: service_healthy
-    profiles: ['tools']
-
 volumes:
   pgdata:

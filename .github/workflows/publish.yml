@@ -1,12 +1,8 @@
 name: Publish images
 
-# push 到 master 后构建三个镜像并推到 GitHub Container Registry（公开仓库免费）
+# 仅手动触发：只有想用 GHCR 镜像方式时才在 Actions 里点运行，否则不会白跑构建
 on:
-  push:
-    branches: [master, main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
+  workflow_dispatch:
 
 jobs:
   publish:

@@ -43,21 +43,5 @@ services:
       - "3000:80"
     restart: unless-stopped
 
-  # 一次性迁移任务：用后端 Dockerfile 的 migrate 阶段（含 prisma CLI + migrations）。
-  # 仅部署脚本显式调用：docker compose --profile tools run --rm migrate
-  migrate:
-    build:
-      context: ./backend
-      target: migrate
-    container_name: zhangben-migrate
-    command: ["npx", "prisma", "migrate", "deploy"]
-    environment:
-      DATABASE_URL: postgresql://zhangben:zhangben@db:5432/zhangben?schema=public
-      TZ: Asia/Shanghai
-    depends_on:
-      db:
-        condition: service_healthy
-    profiles: ["tools"]
-
 volumes:
   pgdata:

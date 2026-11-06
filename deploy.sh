@@ -9,17 +9,12 @@ BRANCH="${DEPLOY_BRANCH:-master}"
 
 echo "[deploy] $(date '+%F %T') 开始部署 $APP_DIR (分支 $BRANCH)"
 
-echo "[deploy] 1/4 拉取最新代码"
+echo "[deploy] 1/3 拉取最新代码"
 git fetch --all --prune
 git reset --hard "origin/$BRANCH"
 
-echo "[deploy] 2/4 构建镜像"
+echo "[deploy] 2/3 构建并重启（后端启动时会自动跑数据库迁移）"
 docker compose build
-
-echo "[deploy] 3/4 执行数据库迁移"
-docker compose --profile tools run --rm migrate
-
-echo "[deploy] 4/4 重启服务"
 docker compose up -d --remove-orphans
 
 echo "[deploy] 清理旧镜像"
