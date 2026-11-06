@@ -1,15 +1,139 @@
-/* A4 打印样式：只保留内容表格，隐藏导航/按钮/分页 */
+/* ===== A4 打印基础（按《会计逻辑与A4打印规范》§4.5） ===== */
+@page {
+  size: A4 portrait;
+  margin: 12mm 10mm; /* 页边距只在这里设置，容器不要再叠加 */
+}
+
+.sheet {
+  width: 190mm; /* 210 - 10*2 */
+  margin: 10mm auto;
+  padding: 0;
+  font-family: "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
+  color: #000;
+  font-size: 9pt;
+  line-height: 1.35;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+}
+
+.sheet .doc-title {
+  text-align: center;
+  font-family: "SimHei", "Heiti SC", "Noto Sans CJK SC", sans-serif;
+  font-weight: 700;
+  font-size: 20pt;
+  letter-spacing: 8mm;
+  margin: 0 0 4mm;
+}
+.sheet .report-title {
+  font-size: 16pt;
+  letter-spacing: 4mm;
+}
+.sheet .meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 10.5pt;
+  margin-bottom: 1.5mm;
+}
+.sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.sheet th,
+.sheet td {
+  border: 0.3mm solid #000;
+  padding: 0 1.5mm;
+  font-size: 9pt;
+  height: 8mm;
+  vertical-align: middle;
+  word-break: break-all;
+}
+.sheet th {
+  font-weight: 400;
+  text-align: center;
+  background: #f2f2f2;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.sheet .num {
+  text-align: right;
+  font-family: Consolas, "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sheet .center {
+  text-align: center;
+}
+.sheet .bold {
+  font-weight: 700;
+}
+.sheet tr.total > td {
+  font-weight: 700;
+  border-top: 0.6mm solid #000;
+}
+.sheet .amount-words {
+  font-size: 10.5pt;
+  letter-spacing: 0.5mm;
+}
+.sheet .sign-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  margin-top: 6mm;
+  font-size: 9.5pt;
+}
+.sheet .attach {
+  margin-top: 2mm;
+  font-size: 9.5pt;
+}
+.sheet .page-footer {
+  margin-top: 4mm;
+  text-align: center;
+  font-size: 8pt;
+  color: #333;
+}
+.sheet.report th,
+.sheet.report td {
+  height: 5.5mm;
+  font-size: 7.5pt;
+  padding: 0 1mm;
+}
+.sheet.report th {
+  font-size: 8pt;
+}
+.sheet .section-row > td {
+  font-weight: 700;
+  background: #fafafa;
+}
+
 @media print {
-  @page {
-    size: A4;
-    margin: 10mm;
+  .no-print {
+    display: none !important;
   }
+  .sheet {
+    margin: 0;
+    box-shadow: none;
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  /* 主应用（非打印页）隐藏导航/按钮/分页 */
   .ant-layout-sider,
   .ant-layout-header,
   .ant-btn,
   .ant-tabs-nav,
-  .ant-pagination,
-  .no-print {
+  .ant-pagination {
     display: none !important;
   }
   .ant-layout-content {
@@ -28,8 +152,5 @@
   .ant-table th,
   .ant-table td {
     border: 1px solid #000 !important;
-  }
-  body {
-    margin: 0;
   }
 }

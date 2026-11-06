@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Button,
   Card,
   DatePicker,
@@ -12,6 +13,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from 'antd';
@@ -19,6 +21,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import api from '../api/client';
+import { useRole } from '../hooks/useRole';
 
 const { Title } = Typography;
 
@@ -70,6 +73,7 @@ interface AssetFormValues {
 }
 
 export default function Assets() {
+  const { isReadOnly } = useRole();
   const [books, setBooks] = useState<Book[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -288,14 +292,25 @@ export default function Assets() {
       width: 200,
       render: (_, r) => (
         <Space size="small">
-          <Button size="small" onClick={() => openEdit(r)}>
+          <Button size="small" onClick={() => openEdit(r)} disabled={isReadOnly}>
             编辑
           </Button>
-          <Button size="small" type="primary" ghost onClick={() => openDepreciate(r)}>
+          <Button
+            size="small"
+            type="primary"
+            ghost
+            onClick={() => openDepreciate(r)}
+            disabled={isReadOnly}
+          >
             计提折旧
           </Button>
-          <Popconfirm title="确认删除该固定资产？" onConfirm={() => removeAsset(r.id)}>
-            <Button size="small" danger>
+          <Popconfirm
+            title="确认删除该固定资产？"
+            description="已计提折旧的资产删除后不可恢复，建议改为停用。"
+            onConfirm={() => removeAsset(r.id)}
+            disabled={isReadOnly}
+          >
+            <Button size="small" danger disabled={isReadOnly}>
               删除
             </Button>
           </Popconfirm>
@@ -316,6 +331,14 @@ export default function Assets() {
   return (
     <div style={{ padding: 24 }}>
       <Title level={4}>固定资产</Title>
+      {isReadOnly && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="固定资产模块仅对系统管理员开放读写，当前角色可查看但不可新增/计提/删除"
+        />
+      )}
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap>
           <span>账套：</span>
@@ -333,9 +356,18 @@ export default function Assets() {
           <Button icon={<ReloadOutlined />} onClick={loadAssets}>
             刷新
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            新增固定资产
-          </Button>
+          <Tooltip title={isReadOnly ? '仅系统管理员可新增固定资产' : undefined}>
+            <span>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={openCreate}
+                disabled={isReadOnly}
+              >
+                新增固定资产
+              </Button>
+            </span>
+          </Tooltip>
         </Space>
       </Card>
 
@@ -359,7 +391,7 @@ export default function Assets() {
         onCancel={() => setModalOpen(false)}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
         width={640}
       >
         <Form form={form} layout="vertical">
@@ -477,7 +509,7 @@ export default function Assets() {
         onCancel={() => setDepreciateOpen(false)}
         okText="计提"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <p style={{ marginBottom: 8 }}>
           月折旧额 = 原值 × (1 - 残值率) / 使用月数，四舍五入到分；计提后自动生成折旧凭证。

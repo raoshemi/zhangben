@@ -15,7 +15,7 @@ test.describe('A4 打印 E2E', () => {
     await expect(printPage.getByText('记 账 凭 证')).toBeVisible();
     await expect(printPage.locator('table')).toBeVisible();
     await expect(printPage.getByText('合计')).toBeVisible();
-    await expect(printPage.getByText(/制单人/)).toBeVisible();
+    await expect(printPage.getByText(/会计主管/)).toBeVisible();
     await printPage.screenshot({ path: 'test-results/print-voucher.png', fullPage: true });
   });
 

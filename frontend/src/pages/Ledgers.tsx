@@ -4,8 +4,8 @@ import {
   Button,
   Card,
   DatePicker,
+  Descriptions,
   Empty,
-  InputNumber,
   Select,
   Space,
   Table,
@@ -13,16 +13,16 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { PrinterOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
-
-const { Title, Text } = Typography;
-
-interface Book {
-  id: number;
-  name: string;
-  accountingStandard: string;
-}
+import AccountSelect from '../components/AccountSelect';
+import BookSelect from '../components/BookSelect';
+import BooksEmptyHint from '../components/BooksEmptyHint';
+import PageHeader from '../components/PageHeader';
+import { useAccounts } from '../hooks/useAccounts';
+import { useBooks } from '../hooks/useBooks';
+import { errorMessage } from '../lib/format';
 
 interface BalanceRow {
   accountId: number;
@@ -118,8 +118,10 @@ const balanceColumns: ColumnsType<BalanceRow> = [
   { title: '期末贷方', dataIndex: 'finalCredit', align: 'right' },
 ];
 
+const dirText = (d: string) => (d === 'debit' ? '借' : '贷');
+
 export default function Ledgers() {
-  const [books, setBooks] = useState<Book[]>([]);
+  const { books, loading: booksLoading } = useBooks();
   const [bookId, setBookId] = useState<number>();
   const [period, setPeriod] = useState<string>(dayjs().format('YYYY-MM'));
   const [tab, setTab] = useState('general');
@@ -135,15 +137,11 @@ export default function Ledgers() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
+  const { leafAccounts, loading: accountsLoading } = useAccounts(bookId);
+
   useEffect(() => {
-    api
-      .get<{ rows: Book[] }>('/ledgers/books')
-      .then((r) => {
-        setBooks(r.data.rows);
-        if (r.data.rows.length && bookId == null) setBookId(r.data.rows[0].id);
-      })
-      .catch((e) => setError(String(e?.message ?? e)));
-  }, []);
+    if (bookId == null && books.length) setBookId(books[0].id);
+  }, [books, bookId]);
 
   const load = useCallback(async () => {
     if (bookId == null) return;
@@ -151,9 +149,7 @@ export default function Ledgers() {
     setError(undefined);
     try {
       if (tab === 'general') {
-        const r = await api.get('/ledgers/general', {
-          params: { bookId, period },
-        });
+        const r = await api.get('/ledgers/general', { params: { bookId, period } });
         setGeneralRows(r.data.rows ?? []);
       } else if (tab === 'balance') {
         const r = await api.get('/ledgers/account-balance', {
@@ -161,9 +157,7 @@ export default function Ledgers() {
         });
         setBalanceRows(r.data.rows ?? []);
       } else if (tab === 'trial') {
-        const r = await api.get('/ledgers/trial-balance', {
-          params: { bookId, period },
-        });
+        const r = await api.get('/ledgers/trial-balance', { params: { bookId, period } });
         setTrial(r.data);
       } else if (tab === 'detail') {
         if (detailAccountId == null) {
@@ -180,15 +174,15 @@ export default function Ledgers() {
         });
         setJournal(r.data);
       }
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? e?.message ?? '查询失败');
+    } catch (e) {
+      setError(errorMessage(e, '查询失败'));
     } finally {
       setLoading(false);
     }
   }, [bookId, period, tab, detailAccountId, journalType]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const detailColumns: ColumnsType<DetailLine> = [
@@ -205,7 +199,7 @@ export default function Ledgers() {
       title: '余额',
       align: 'right',
       width: 130,
-      render: (_, r) => `${r.balanceDirection === 'debit' ? '借' : '贷'} ${r.balance}`,
+      render: (_, r) => `${dirText(r.balanceDirection)} ${r.balance}`,
     },
   ];
 
@@ -224,7 +218,7 @@ export default function Ledgers() {
       title: '余额',
       align: 'right',
       width: 130,
-      render: (_, r) => `${r.balanceDirection === 'debit' ? '借' : '贷'} ${r.balance}`,
+      render: (_, r) => `${dirText(r.balanceDirection)} ${r.balance}`,
     },
   ];
 
@@ -237,172 +231,252 @@ export default function Ledgers() {
     : [];
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Title level={4}>账簿查询</Title>
-      <Space wrap style={{ marginBottom: 16 }}>
-        <span>账套：</span>
-        <Select
-          style={{ width: 200 }}
-          placeholder="选择账套"
-          value={bookId}
-          onChange={(v) => setBookId(v)}
-          options={books.map((b) => ({ value: b.id, label: b.name }))}
-        />
-        <span>期间：</span>
-        <DatePicker
-          picker="month"
-          value={period ? dayjs(period) : null}
-          onChange={(d: Dayjs | null) => d && setPeriod(d.format('YYYY-MM'))}
-          allowClear={false}
-        />
-        <Button onClick={() => window.print()}>打印</Button>
-      </Space>
-
-      <Tabs
-        activeKey={tab}
-        onChange={setTab}
-        items={[
-          { key: 'general', label: '总账' },
-          { key: 'detail', label: '明细账' },
-          { key: 'journal', label: '日记账' },
-          { key: 'balance', label: '科目余额表' },
-          { key: 'trial', label: '试算平衡' },
-        ]}
+    <div style={{ padding: 24 }}>
+      <PageHeader
+        title="账簿查询"
+        description={`${period} · 总账 / 明细账 / 日记账 / 余额表 / 试算平衡，共用同一「账套 + 期间」口径`}
+        extra={
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
+              刷新
+            </Button>
+            <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+              打印
+            </Button>
+          </Space>
+        }
       />
 
-      {error && (
-        <Alert
-          type="error"
-          message={error}
-          showIcon
-          style={{ marginBottom: 12 }}
-        />
-      )}
+      <BooksEmptyHint books={books} loading={booksLoading} />
 
-      {tab === 'general' && (
-        <Table
-          rowKey="accountId"
-          columns={balanceColumns}
-          dataSource={generalRows}
-          loading={loading}
-          pagination={false}
-          size="small"
-          scroll={{ x: 960 }}
-        />
-      )}
-
-      {tab === 'balance' && (
-        <Table
-          rowKey="accountId"
-          columns={balanceColumns}
-          dataSource={balanceRows}
-          loading={loading}
-          size="small"
-          scroll={{ x: 960 }}
-        />
-      )}
-
-      {tab === 'trial' &&
-        (trial ? (
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Alert
-              type={trial.balanced ? 'success' : 'error'}
-              showIcon
-              message={
-                trial.balanced ? '试算平衡' : '试算不平衡（借贷不等）'
-              }
-            />
-            <Table
-              rowKey="key"
-              pagination={false}
-              size="small"
-              columns={[
-                { title: '项目', dataIndex: 'key', width: 160 },
-                { title: '借方合计', dataIndex: 'debit', align: 'right' },
-                { title: '贷方合计', dataIndex: 'credit', align: 'right' },
-              ]}
-              dataSource={trialRows}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Space wrap size={12}>
+          <Space size={4}>
+            <Typography.Text type="secondary">账套</Typography.Text>
+            <BookSelect
+              books={books}
+              value={bookId}
+              onChange={setBookId}
+              loading={booksLoading}
+              style={{ width: 260 }}
             />
           </Space>
-        ) : (
-          <Empty description="请先选择账套与期间" />
-        ))}
-
-      {tab === 'detail' && (
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Space>
-            <span>科目 ID：</span>
-            <InputNumber
-              min={1}
-              placeholder="输入科目 ID"
-              value={detailAccountId}
-              onChange={(v) => setDetailAccountId(v ?? undefined)}
+          <Space size={4}>
+            <Typography.Text type="secondary">期间</Typography.Text>
+            <DatePicker
+              picker="month"
+              value={period ? dayjs(period) : null}
+              onChange={(d: Dayjs | null) => d && setPeriod(d.format('YYYY-MM'))}
+              allowClear={false}
             />
           </Space>
-          {detail ? (
+        </Space>
+      </Card>
+
+      <Card size="small">
+        <Tabs
+          activeKey={tab}
+          onChange={setTab}
+          items={[
+            { key: 'general', label: '总账' },
+            { key: 'detail', label: '明细账' },
+            { key: 'journal', label: '日记账' },
+            { key: 'balance', label: '科目余额表' },
+            { key: 'trial', label: '试算平衡' },
+          ]}
+        />
+
+        {error && (
+          <Alert
+            type="error"
+            message={error}
+            showIcon
+            style={{ marginBottom: 12 }}
+            action={
+              <Button size="small" onClick={() => void load()}>
+                重试
+              </Button>
+            }
+          />
+        )}
+
+        {tab === 'general' && (
+          <Table
+            rowKey="accountId"
+            columns={balanceColumns}
+            dataSource={generalRows}
+            loading={loading}
+            pagination={false}
+            size="small"
+            scroll={{ x: 960 }}
+            locale={{ emptyText: '本期暂无发生额（请确认已记账凭证所属期间）' }}
+          />
+        )}
+
+        {tab === 'balance' && (
+          <Table
+            rowKey="accountId"
+            columns={balanceColumns}
+            dataSource={balanceRows}
+            loading={loading}
+            size="small"
+            scroll={{ x: 960 }}
+            locale={{ emptyText: '本期暂无科目余额数据' }}
+          />
+        )}
+
+        {tab === 'trial' &&
+          (trial ? (
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Text>
-                {detail.account.code} {detail.account.name}｜期初{' '}
-                {detail.opening.direction === 'debit' ? '借' : '贷'}{' '}
-                {detail.opening.amount}｜本期借 {detail.currentDebit}｜本期贷{' '}
-                {detail.currentCredit}｜期末{' '}
-                {detail.closing.direction === 'debit' ? '借' : '贷'}{' '}
-                {detail.closing.amount}
-              </Text>
+              <Alert
+                type={trial.balanced ? 'success' : 'error'}
+                showIcon
+                message={trial.balanced ? '试算平衡' : '试算不平衡（借贷不等）'}
+              />
               <Table
-                rowKey={(r) => `${r.voucherType}-${r.voucherNo}-${r.summary}`}
-                columns={detailColumns}
-                dataSource={detail.lines}
-                loading={loading}
+                rowKey="key"
+                pagination={false}
                 size="small"
-                scroll={{ x: 800 }}
+                columns={[
+                  { title: '项目', dataIndex: 'key', width: 160 },
+                  { title: '借方合计', dataIndex: 'debit', align: 'right' },
+                  { title: '贷方合计', dataIndex: 'credit', align: 'right' },
+                ]}
+                dataSource={trialRows}
               />
             </Space>
           ) : (
-            <Empty description="请输入科目 ID 查询明细账" />
-          )}
-        </Space>
-      )}
+            <Empty description="正在读取试算平衡数据" />
+          ))}
 
-      {tab === 'journal' && (
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Space>
-            <span>类型：</span>
-            <Select
-              style={{ width: 160 }}
-              value={journalType}
-              onChange={(v) => setJournalType(v)}
-              options={[
-                { value: 'cash', label: '现金日记账' },
-                { value: 'bank', label: '银行日记账' },
-              ]}
-            />
-          </Space>
-          {journal ? (
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Text>
-                {journal.account.code} {journal.account.name}｜期初{' '}
-                {journal.opening.direction === 'debit' ? '借' : '贷'}{' '}
-                {journal.opening.amount}｜本月收入 {journal.summary.totalIncome}
-                ｜本月支出 {journal.summary.totalExpense}｜月末余额{' '}
-                {journal.summary.direction === 'debit' ? '借' : '贷'}{' '}
-                {journal.summary.closing}
-              </Text>
-              <Table
-                rowKey={(r) => `${r.voucherType}-${r.voucherNo}-${r.summary}`}
-                columns={journalColumns}
-                dataSource={journal.lines}
-                loading={loading}
-                size="small"
-                scroll={{ x: 900 }}
+        {tab === 'detail' && (
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Space size={8} wrap>
+              <Typography.Text type="secondary">选择明细科目</Typography.Text>
+              <AccountSelect
+                accounts={leafAccounts}
+                value={detailAccountId}
+                loading={accountsLoading}
+                showCategory
+                onChange={(id) => setDetailAccountId(id)}
+                placeholder="输入科目编码 / 名称，如 1001"
+                style={{ width: 380 }}
               />
             </Space>
-          ) : (
-            <Empty description="无日记账数据" />
-          )}
-        </Space>
-      )}
+            {detail ? (
+              <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                <Descriptions
+                  size="small"
+                  bordered
+                  column={{ xs: 1, sm: 2, md: 4 }}
+                  items={[
+                    {
+                      key: 'account',
+                      label: '科目',
+                      children: `${detail.account.code} ${detail.account.name}`,
+                    },
+                    {
+                      key: 'opening',
+                      label: '期初余额',
+                      children: `${dirText(detail.opening.direction)} ${detail.opening.amount}`,
+                    },
+                    {
+                      key: 'debit',
+                      label: '本期借方',
+                      children: detail.currentDebit,
+                    },
+                    {
+                      key: 'credit',
+                      label: '本期贷方',
+                      children: detail.currentCredit,
+                    },
+                    {
+                      key: 'closing',
+                      label: '期末余额',
+                      children: `${dirText(detail.closing.direction)} ${detail.closing.amount}`,
+                    },
+                  ]}
+                />
+                <Table
+                  rowKey={(r) => `${r.voucherType}-${r.voucherNo}-${r.summary}`}
+                  columns={detailColumns}
+                  dataSource={detail.lines}
+                  loading={loading}
+                  size="small"
+                  scroll={{ x: 800 }}
+                  locale={{ emptyText: '该科目本期无明细发生额' }}
+                />
+              </Space>
+            ) : (
+              <Empty description="请选择要查看的明细科目" />
+            )}
+          </Space>
+        )}
 
-    </Card>
+        {tab === 'journal' && (
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Space size={8}>
+              <Typography.Text type="secondary">类型</Typography.Text>
+              <Select
+                style={{ width: 180 }}
+                value={journalType}
+                onChange={(v) => setJournalType(v)}
+                options={[
+                  { value: 'cash', label: '现金日记账' },
+                  { value: 'bank', label: '银行日记账' },
+                ]}
+              />
+            </Space>
+            {journal ? (
+              <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                <Descriptions
+                  size="small"
+                  bordered
+                  column={{ xs: 1, sm: 2, md: 4 }}
+                  items={[
+                    {
+                      key: 'account',
+                      label: '科目',
+                      children: `${journal.account.code} ${journal.account.name}`,
+                    },
+                    {
+                      key: 'opening',
+                      label: '期初余额',
+                      children: `${dirText(journal.opening.direction)} ${journal.opening.amount}`,
+                    },
+                    {
+                      key: 'income',
+                      label: '本月收入',
+                      children: journal.summary.totalIncome,
+                    },
+                    {
+                      key: 'expense',
+                      label: '本月支出',
+                      children: journal.summary.totalExpense,
+                    },
+                    {
+                      key: 'closing',
+                      label: '月末余额',
+                      children: `${dirText(journal.summary.direction)} ${journal.summary.closing}`,
+                    },
+                  ]}
+                />
+                <Table
+                  rowKey={(r) => `${r.voucherType}-${r.voucherNo}-${r.summary}`}
+                  columns={journalColumns}
+                  dataSource={journal.lines}
+                  loading={loading}
+                  size="small"
+                  scroll={{ x: 900 }}
+                  locale={{ emptyText: '该账户本期无收付记录' }}
+                />
+              </Space>
+            ) : (
+              <Empty description="无日记账数据" />
+            )}
+          </Space>
+        )}
+      </Card>
+    </div>
   );
 }

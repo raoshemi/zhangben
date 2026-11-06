@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
+import { fmtMoney } from '../lib/format';
 
 interface ReportRow {
   label: string;
@@ -13,12 +14,14 @@ interface Section {
 }
 interface BalanceData {
   period: string;
+  standard: string;
   assets: Section;
   liabilities: Section;
   equity: Section;
   totalAssets: string;
   totalLiabilitiesAndEquity: string;
   balanced: boolean;
+  difference: string;
 }
 interface IncomeData {
   period: string;
@@ -35,25 +38,44 @@ interface CashFlowData {
   endingCash: string;
 }
 
-const printCss = `
-  .print-page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 15mm 12mm; box-sizing: border-box; font-family: "SimSun","Songti SC",serif; color: #000; background: #fff; }
-  .print-page .title { text-align: center; font-size: 16pt; letter-spacing: 6px; margin: 0 0 5mm; font-weight: bold; }
-  .print-page .meta { display: flex; justify-content: space-between; font-size: 10.5pt; margin-bottom: 2mm; }
-  .print-page table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .print-page th, .print-page td { border: 1px solid #000; padding: 1.6mm 2mm; font-size: 10.5pt; height: 7mm; }
-  .print-page th { font-weight: normal; text-align: center; }
-  .print-page .num { text-align: right; font-family: "Courier New", monospace; }
-  .print-page .bold { font-weight: bold; }
-  .print-page .section { font-weight: bold; }
-  @media print {
-    .no-print { display: none !important; }
-    @page { size: A4; margin: 10mm; }
-    body { margin: 0; }
-  }
-`;
+interface PrintLine extends ReportRow {
+  no?: number;
+}
 
-function split(rows: ReportRow[]): { label: string; value: string; section?: boolean }[] {
-  return rows.map((r) => ({ label: r.label, value: r.value, section: r.type === 'section' }));
+const fmt = (v: string) => (v === '' ? '' : fmtMoney(v));
+const periodTitle = (p: string) => (p ? p.replace('-', ' 年 ') + ' 月' : '');
+
+/** 资产侧：插「流动资产：/非流动资产：」分段 + 资产总计 */
+function buildAssetRows(sec: Section, totalAssets: string): PrintLine[] {
+  const rows: PrintLine[] = [{ label: '流动资产：', value: '', type: 'section' }];
+  for (const l of sec.lines) {
+    rows.push(l);
+    if (l.label === '流动资产合计') {
+      rows.push({ label: '非流动资产：', value: '', type: 'section' });
+    }
+  }
+  rows.push({ label: '资产总计', value: totalAssets, type: 'total' });
+  return rows;
+}
+
+/** 右栏：负债（流动/非流动分段+负债合计）+ 所有者权益（含总计） */
+function buildRightRows(data: BalanceData): PrintLine[] {
+  const rows: PrintLine[] = [{ label: '流动负债：', value: '', type: 'section' }];
+  for (const l of data.liabilities.lines) {
+    rows.push(l);
+    if (l.label === '流动负债合计') {
+      rows.push({ label: '非流动负债：', value: '', type: 'section' });
+    }
+  }
+  rows.push({ label: '负债合计', value: data.liabilities.total, type: 'total' });
+  rows.push({ label: '所有者权益：', value: '', type: 'section' });
+  for (const l of data.equity.lines) rows.push(l);
+  rows.push({
+    label: '负债和所有者权益总计',
+    value: data.totalLiabilitiesAndEquity,
+    type: 'total',
+  });
+  return rows;
 }
 
 export default function ReportPrint() {
@@ -77,43 +99,48 @@ export default function ReportPrint() {
   }, [bookId, period, type]);
 
   const toolbar = (
-    <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
-      <button onClick={() => window.print()} style={{ padding: '6px 24px', cursor: 'pointer' }}>
+    <div className="no-print" style={{ textAlign: 'center', padding: '10px 0' }}>
+      <button
+        onClick={() => window.print()}
+        style={{ padding: '6px 24px', cursor: 'pointer' }}
+      >
         打印
       </button>
+      <span style={{ marginLeft: 12, color: '#888', fontSize: 12 }}>（A4 纵向）</span>
     </div>
-  );
-  const meta = (title: string, periodText: string) => (
-    <>
-      <div className="title">{title}</div>
-      <div className="meta">
-        <span>编制单位：账本记账系统</span>
-        <span>期间：{periodText}</span>
-        <span>单位：元</span>
-      </div>
-    </>
   );
 
   if (type === 'balance') {
     if (!balance) return <div style={{ padding: 20 }}>加载中...</div>;
-    const left = split(balance.assets.lines);
-    const right = [...split(balance.liabilities.lines), ...split(balance.equity.lines)];
-    // 左栏末尾追加「资产总计」，右栏末尾追加「负债和所有者权益总计」
-    left.push({ label: '资产总计', value: balance.totalAssets, section: true });
-    right.push({ label: '负债和所有者权益总计', value: balance.totalLiabilitiesAndEquity, section: true });
+    const left = buildAssetRows(balance.assets, balance.totalAssets);
+    const right = buildRightRows(balance);
+    let ln = 0;
+    let rn = 42;
+    left.forEach((r) => {
+      if (r.type !== 'section') r.no = ++ln;
+    });
+    right.forEach((r) => {
+      if (r.type !== 'section') r.no = ++rn;
+    });
     const n = Math.max(left.length, right.length);
     return (
-      <div className="print-page">
-        <style>{printCss}</style>
+      <div className="sheet report">
         {toolbar}
-        {meta('资 产 负 债 表', balance.period)}
+        <div className="doc-title report-title">资 产 负 债 表</div>
+        <div className="meta">
+          <span>编制单位：</span>
+          <span>{periodTitle(period)}</span>
+          <span>单位：元</span>
+        </div>
         <table>
           <thead>
             <tr>
-              <th style={{ width: '28%' }}>资产</th>
-              <th style={{ width: '22%' }}>期末数</th>
-              <th style={{ width: '28%' }}>负债和所有者权益</th>
-              <th style={{ width: '22%' }}>期末数</th>
+              <th style={{ width: '34mm' }}>资产</th>
+              <th style={{ width: '8mm' }}>行次</th>
+              <th style={{ width: '28mm' }}>期末余额</th>
+              <th style={{ width: '34mm' }}>负债和所有者权益</th>
+              <th style={{ width: '8mm' }}>行次</th>
+              <th style={{ width: '28mm' }}>期末余额</th>
             </tr>
           </thead>
           <tbody>
@@ -121,98 +148,152 @@ export default function ReportPrint() {
               const l = left[i];
               const r = right[i];
               return (
-                <tr key={i}>
-                  <td className={l?.section ? 'bold' : undefined}>{l?.label ?? ''}</td>
-                  <td className="num">{l ? (l.value === '' ? '' : Number(l.value).toFixed(2)) : ''}</td>
-                  <td className={r?.section ? 'bold' : undefined}>{r?.label ?? ''}</td>
-                  <td className="num">{r ? (r.value === '' ? '' : Number(r.value).toFixed(2)) : ''}</td>
+                <tr
+                  key={i}
+                  className={
+                    l?.type === 'subtotal' || l?.type === 'total' || l?.type === 'section'
+                      ? 'section-row'
+                      : undefined
+                  }
+                >
+                  <td className={l?.type === 'section' ? 'bold' : undefined}>
+                    {l?.label ?? ''}
+                  </td>
+                  <td className="center">{l?.no ?? ''}</td>
+                  <td className="num">{l ? fmt(l.value) : ''}</td>
+                  <td className={r?.type === 'section' ? 'bold' : undefined}>
+                    {r?.label ?? ''}
+                  </td>
+                  <td className="center">{r?.no ?? ''}</td>
+                  <td className="num">{r ? fmt(r.value) : ''}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {!balance.balanced && (
+          <div className="page-footer" style={{ color: '#c00' }}>
+            差额：{fmtMoney(balance.difference)} 元（资产 ≠ 负债和所有者权益，不平衡）
+          </div>
+        )}
+        <div className="page-footer">第 1 页 共 1 页</div>
       </div>
     );
   }
 
   if (type === 'income') {
     if (!income) return <div style={{ padding: 20 }}>加载中...</div>;
+    const rows = income.rows.map((r, i) => ({ ...r, no: i + 1 }));
     return (
-      <div className="print-page">
-        <style>{printCss}</style>
+      <div className="sheet report">
         {toolbar}
-        {meta('利 润 表', income.period)}
+        <div className="doc-title report-title">利 润 表</div>
+        <div className="meta">
+          <span>编制单位：</span>
+          <span>{periodTitle(period)}</span>
+          <span>单位：元</span>
+        </div>
         <table>
           <thead>
             <tr>
-              <th style={{ width: '70%' }}>项目</th>
-              <th style={{ width: '30%' }}>本期金额</th>
+              <th style={{ width: '120mm' }}>项目</th>
+              <th style={{ width: '10mm' }}>行次</th>
+              <th style={{ width: '60mm' }}>本期金额</th>
             </tr>
           </thead>
           <tbody>
-            {income.rows.map((r, i) => (
-              <tr key={i}>
-                <td className={r.type === 'section' || r.type === 'total' || r.type === 'subtotal' ? 'bold' : undefined}>{r.label}</td>
-                <td className="num">{r.type === 'section' ? '' : Number(r.value).toFixed(2)}</td>
+            {rows.map((r, i) => (
+              <tr key={i} className={r.type === 'subtotal' || r.type === 'total' ? 'section-row' : undefined}>
+                <td className={r.type === 'subtotal' || r.type === 'total' ? 'bold' : undefined}>
+                  {r.label}
+                </td>
+                <td className="center">{r.no}</td>
+                <td className="num">{fmt(r.value)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        <div className="page-footer">第 1 页 共 1 页</div>
       </div>
     );
   }
 
   if (!cashflow) return <div style={{ padding: 20 }}>加载中...</div>;
-  const sections: { title: string; sec: Section }[] = [
+  const groups: { title: string; sec: Section }[] = [
     { title: '一、经营活动产生的现金流量', sec: cashflow.operating },
     { title: '二、投资活动产生的现金流量', sec: cashflow.investing },
     { title: '三、筹资活动产生的现金流量', sec: cashflow.financing },
   ];
+  let no = 0;
   return (
-    <div className="print-page">
-      <style>{printCss}</style>
+    <div className="sheet report">
       {toolbar}
-      {meta('现 金 流 量 表', cashflow.period)}
+      <div className="doc-title report-title">现 金 流 量 表</div>
+      <div className="meta">
+        <span>编制单位：</span>
+        <span>{periodTitle(period)}</span>
+        <span>单位：元</span>
+      </div>
       <table>
         <thead>
           <tr>
-            <th style={{ width: '70%' }}>项目</th>
-            <th style={{ width: '30%' }}>本期金额</th>
+            <th style={{ width: '120mm' }}>项目</th>
+            <th style={{ width: '10mm' }}>行次</th>
+            <th style={{ width: '60mm' }}>本期金额</th>
           </tr>
         </thead>
         <tbody>
-          {sections.map((s) => (
-            <>
-              <tr key={s.title}>
-                <td className="section">{s.title}</td>
-                <td className="num"></td>
-              </tr>
-              {s.sec.lines.map((r, i) => (
-                <tr key={`${s.title}-${i}`}>
-                  <td className={r.type === 'section' ? 'bold' : undefined}>{r.label}</td>
-                  <td className="num">{r.type === 'section' ? '' : Number(r.value).toFixed(2)}</td>
-                </tr>
-              ))}
-              <tr key={`${s.title}-total`}>
-                <td className="bold">小计</td>
-                <td className="num bold">{Number(s.sec.total).toFixed(2)}</td>
-              </tr>
-            </>
+          {groups.map((g) => (
+            <FragmentGroup key={g.title} group={g} nextNo={() => ++no} />
           ))}
           <tr>
             <td className="bold">现金及现金等价物净增加额</td>
-            <td className="num bold">{Number(cashflow.netIncrease).toFixed(2)}</td>
+            <td className="center">{++no}</td>
+            <td className="num bold">{fmt(cashflow.netIncrease)}</td>
           </tr>
           <tr>
             <td>期初现金余额</td>
-            <td className="num">{Number(cashflow.beginningCash).toFixed(2)}</td>
+            <td className="center">{++no}</td>
+            <td className="num">{fmt(cashflow.beginningCash)}</td>
           </tr>
-          <tr>
+          <tr className="section-row">
             <td className="bold">期末现金余额</td>
-            <td className="num bold">{Number(cashflow.endingCash).toFixed(2)}</td>
+            <td className="center">{++no}</td>
+            <td className="num bold">{fmt(cashflow.endingCash)}</td>
           </tr>
         </tbody>
       </table>
+      <div className="page-footer">第 1 页 共 1 页</div>
     </div>
+  );
+}
+
+function FragmentGroup({
+  group,
+  nextNo,
+}: {
+  group: { title: string; sec: Section };
+  nextNo: () => number;
+}) {
+  return (
+    <>
+      <tr className="section-row">
+        <td className="bold">{group.title}</td>
+        <td className="center"></td>
+        <td className="num"></td>
+      </tr>
+      {group.sec.lines.map((r, i) => (
+        <tr key={i}>
+          <td>{r.label}</td>
+          <td className="center">{nextNo()}</td>
+          <td className="num">{fmt(r.value)}</td>
+        </tr>
+      ))}
+      <tr className="section-row">
+        <td className="bold">小计</td>
+        <td className="center">{nextNo()}</td>
+        <td className="num bold">{fmt(group.sec.total)}</td>
+      </tr>
+    </>
   );
 }
