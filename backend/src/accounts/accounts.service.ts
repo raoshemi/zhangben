@@ -12,6 +12,7 @@ import {
   UpdateAccountDto,
 } from './dto';
 import { enterpriseAccounts, smallAccounts, SeedAccount } from '../shared/account-chart';
+import { buildPeriods } from '../shared/periods';
 
 @Injectable()
 export class AccountsService {
@@ -41,6 +42,9 @@ export class AccountsService {
     const chart =
       dto.accountingStandard === 'small' ? smallAccounts : enterpriseAccounts;
     await this.importChart(book.id, chart);
+    await this.prisma.period.createMany({
+      data: buildPeriods(book.id, book.startDate, book.endDate),
+    });
     return book;
   }
 

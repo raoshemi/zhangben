@@ -6,6 +6,7 @@ import {
   defaultCashFlowItems,
   SeedAccount,
 } from '../src/shared/account-chart';
+import { buildPeriods } from '../src/shared/periods';
 
 const prisma = new PrismaClient();
 
@@ -97,6 +98,17 @@ async function main() {
       })),
     });
     console.log('已创建默认账套(企业会计准则) + 会计科目 + 现金流量项目');
+  }
+
+  // 幂等：为所有账套补建缺失的会计期间
+  const allBooks = await prisma.accountBook.findMany();
+  for (const b of allBooks) {
+    const periodCount = await prisma.period.count({ where: { bookId: b.id } });
+    if (periodCount === 0) {
+      await prisma.period.createMany({
+        data: buildPeriods(b.id, b.startDate, b.endDate),
+      });
+    }
   }
 
   console.log('Seed 完成');
