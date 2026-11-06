@@ -28,7 +28,10 @@ export class VouchersService {
     const pageSize = query.pageSize ?? 20;
 
     const where: Prisma.VoucherWhereInput = { bookId };
-    if (period) where.period = period;
+    if (period) {
+      const start = query.startPeriod ?? period;
+      where.period = start !== period ? { gte: start, lte: period } : period;
+    }
     if (status) where.status = status;
     if (keyword) {
       const numeric = Number(keyword);

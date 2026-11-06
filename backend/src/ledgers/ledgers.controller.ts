@@ -22,12 +22,12 @@ export class LedgersController {
 
   @Get('detail')
   detail(@Query() q: DetailQueryDto) {
-    return this.ledgers.detail(q.bookId, q.period, q.accountId);
+    return this.ledgers.detail(q.bookId, q.period, q.accountId, q.startPeriod);
   }
 
   @Get('journal')
   journal(@Query() q: JournalQueryDto) {
-    return this.ledgers.journal(q.bookId, q.period, q.type);
+    return this.ledgers.journal(q.bookId, q.period, q.type, q.startPeriod);
   }
 
   @Get('account-balance')

@@ -62,7 +62,9 @@ export default function VoucherList() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [period, setPeriod] = useState<string | undefined>();
+  const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
+  const startPeriod = range?.[0]?.format('YYYY-MM');
+  const endPeriod = range?.[1]?.format('YYYY-MM');
   const [status, setStatus] = useState<string | undefined>();
   const [keyword, setKeyword] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -76,7 +78,8 @@ export default function VoucherList() {
       const { data } = await api.get('/vouchers', {
         params: {
           bookId,
-          period,
+          period: endPeriod,
+          startPeriod,
           status,
           keyword: keyword || undefined,
           page,
@@ -90,7 +93,7 @@ export default function VoucherList() {
     } finally {
       setLoading(false);
     }
-  }, [bookId, period, status, keyword, page, pageSize]);
+  }, [bookId, startPeriod, endPeriod, status, keyword, page, pageSize]);
 
   useEffect(() => {
     void fetchList();
@@ -271,7 +274,7 @@ export default function VoucherList() {
     },
   ];
 
-  const hasFilter = !!period || !!status || !!keyword;
+  const hasFilter = !!range || !!status || !!keyword;
 
   return (
     <div style={{ padding: 24 }}>
@@ -297,14 +300,14 @@ export default function VoucherList() {
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
-          <Space size={4}>
-            
-          </Space>
-          <DatePicker
+          <DatePicker.RangePicker
             picker="month"
-            value={period ? dayjs(period, 'YYYY-MM') : null}
-            onChange={(d: Dayjs | null) => setPeriod(d ? d.format('YYYY-MM') : undefined)}
-            placeholder="会计期间（全部）"
+            value={range}
+            onChange={(v) =>
+              setRange(v && v[0] && v[1] ? [v[0], v[1]] : null)
+            }
+            placeholder={['起始月', '结束月']}
+            style={{ width: 240 }}
           />
           <Select
             allowClear
@@ -334,7 +337,7 @@ export default function VoucherList() {
             icon={<ReloadOutlined />}
             disabled={!hasFilter}
             onClick={() => {
-              setPeriod(undefined);
+              setRange(null);
               setStatus(undefined);
               setKeyword('');
               setPage(1);

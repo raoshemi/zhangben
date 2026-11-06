@@ -93,4 +93,17 @@ test.describe('回归验证', () => {
     });
     await expect(page.getByText('12月', { exact: true }).first()).toBeVisible();
   });
+
+  test('账簿查询用起止期间（两个输入框）', async ({ page }) => {
+    await login(page, 'admin', 'admin123');
+    await gotoMenu(page, '账簿查询');
+    await expect(page.getByText('起止期间').first()).toBeVisible();
+    expect(await page.locator('.ant-picker-range input').count()).toBe(2);
+  });
+
+  test('凭证管理用起止期间筛选', async ({ page }) => {
+    await login(page, 'admin', 'admin123');
+    await gotoMenu(page, '凭证管理');
+    expect(await page.locator('.ant-picker-range input').count()).toBe(2);
+  });
 });

@@ -157,20 +157,27 @@ export class LedgersService {
   }
 
   /** 明细账：指定科目逐笔序时 + 期初/本期合计/期末 */
-  async detail(bookId: number, period: string, accountId: number) {
+  async detail(bookId: number, period: string, accountId: number, startPeriod?: string) {
     const account = await this.prisma.account.findFirst({
       where: { id: accountId, bookId },
     });
     if (!account) throw new NotFoundException('科目不存在');
 
+    const start = startPeriod ?? period;
+    const range = start !== period;
+
     const balance = await this.prisma.accountBalance.findUnique({
-      where: { bookId_period_accountId: { bookId, period, accountId } },
+      where: { bookId_period_accountId: { bookId, period: start, accountId } },
     });
 
     const entries = await this.prisma.voucherEntry.findMany({
       where: {
         accountId,
-        voucher: { bookId, period, status: 'posted' },
+        voucher: {
+          bookId,
+          period: range ? { gte: start, lte: period } : period,
+          status: 'posted',
+        },
       },
       include: { voucher: true },
       orderBy: [
@@ -234,8 +241,10 @@ export class LedgersService {
   }
 
   /** 现金/银行日记账：逐笔、日清月结，收入(借)/支出(贷)/余额 */
-  async journal(bookId: number, period: string, type: 'cash' | 'bank') {
+  async journal(bookId: number, period: string, type: 'cash' | 'bank', startPeriod?: string) {
     const code = type === 'cash' ? '1001' : '1002';
+    const start = startPeriod ?? period;
+    const range = start !== period;
     const accounts = await this.prisma.account.findMany({
       where: { bookId, code: { startsWith: code } },
       orderBy: { code: 'asc' },
@@ -244,7 +253,7 @@ export class LedgersService {
     const accountIds = accounts.map((a) => a.id);
 
     const balances = await this.prisma.accountBalance.findMany({
-      where: { bookId, period, accountId: { in: accountIds } },
+      where: { bookId, period: start, accountId: { in: accountIds } },
     });
     const openingNet = balances.reduce(
       (acc, b) => acc.plus(netOf(b.initialDebit, b.initialCredit, 0, 0)),
@@ -254,7 +263,11 @@ export class LedgersService {
     const entries = await this.prisma.voucherEntry.findMany({
       where: {
         accountId: { in: accountIds },
-        voucher: { bookId, period, status: 'posted' },
+        voucher: {
+          bookId,
+          period: range ? { gte: start, lte: period } : period,
+          status: 'posted',
+        },
       },
       include: { voucher: true },
       orderBy: [

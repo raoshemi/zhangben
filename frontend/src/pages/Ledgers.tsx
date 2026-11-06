@@ -121,7 +121,9 @@ const dirText = (d: string) => (d === 'debit' ? '借' : '贷');
 
 export default function Ledgers() {
   const { books, bookId, setBookId, loading: booksLoading } = useBook();
-  const [period, setPeriod] = useState<string>(dayjs().format('YYYY-MM'));
+  const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs(), dayjs()]);
+  const startPeriod = range[0].format('YYYY-MM');
+  const endPeriod = range[1].format('YYYY-MM');
   const [tab, setTab] = useState('general');
 
   const [generalRows, setGeneralRows] = useState<BalanceRow[]>([]);
@@ -143,28 +145,37 @@ export default function Ledgers() {
     setError(undefined);
     try {
       if (tab === 'general') {
-        const r = await api.get('/ledgers/general', { params: { bookId, period } });
+        const r = await api.get('/ledgers/general', {
+          params: { bookId, period: endPeriod },
+        });
         setGeneralRows(r.data.rows ?? []);
       } else if (tab === 'balance') {
         const r = await api.get('/ledgers/account-balance', {
-          params: { bookId, period },
+          params: { bookId, period: endPeriod },
         });
         setBalanceRows(r.data.rows ?? []);
       } else if (tab === 'trial') {
-        const r = await api.get('/ledgers/trial-balance', { params: { bookId, period } });
+        const r = await api.get('/ledgers/trial-balance', {
+          params: { bookId, period: endPeriod },
+        });
         setTrial(r.data);
       } else if (tab === 'detail') {
         if (detailAccountId == null) {
           setDetail(undefined);
         } else {
           const r = await api.get('/ledgers/detail', {
-            params: { bookId, period, accountId: detailAccountId },
+            params: {
+              bookId,
+              period: endPeriod,
+              startPeriod,
+              accountId: detailAccountId,
+            },
           });
           setDetail(r.data);
         }
       } else if (tab === 'journal') {
         const r = await api.get('/ledgers/journal', {
-          params: { bookId, period, type: journalType },
+          params: { bookId, period: endPeriod, startPeriod, type: journalType },
         });
         setJournal(r.data);
       }
@@ -173,7 +184,7 @@ export default function Ledgers() {
     } finally {
       setLoading(false);
     }
-  }, [bookId, period, tab, detailAccountId, journalType]);
+  }, [bookId, startPeriod, endPeriod, tab, detailAccountId, journalType]);
 
   useEffect(() => {
     void load();
@@ -228,7 +239,7 @@ export default function Ledgers() {
     <div style={{ padding: 24 }}>
       <PageHeader
         title="账簿查询"
-        description={`${period} · 总账 / 明细账 / 日记账 / 余额表 / 试算平衡，共用同一「账套 + 期间」口径`}
+        description={`${startPeriod} ~ ${endPeriod} · 总账 / 明细账 / 日记账 / 余额表 / 试算平衡，共用同一「账套 + 起止期间」口径`}
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
@@ -246,12 +257,15 @@ export default function Ledgers() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
           <Space size={4}>
-            <Typography.Text type="secondary">期间</Typography.Text>
-            <DatePicker
+            <Typography.Text type="secondary">起止期间</Typography.Text>
+            <DatePicker.RangePicker
               picker="month"
-              value={period ? dayjs(period) : null}
-              onChange={(d: Dayjs | null) => d && setPeriod(d.format('YYYY-MM'))}
+              value={range}
+              onChange={(v) => {
+                if (v && v[0] && v[1]) setRange([v[0], v[1]]);
+              }}
               allowClear={false}
+              style={{ width: 260 }}
             />
           </Space>
         </Space>

@@ -18,6 +18,11 @@ export class QueryVoucherDto {
   @IsString()
   period?: string;
 
+  /** 起始期间（可选，配合 period 组成起止区间） */
+  @IsOptional()
+  @IsString()
+  startPeriod?: string;
+
   @IsOptional()
   @IsIn(VOUCHER_STATUSES)
   status?: string;
