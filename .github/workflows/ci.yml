@@ -36,6 +36,19 @@ jobs:
       - run: npx prisma generate
       - run: npm test
       - run: npm run build
+      # e2e：在独立测试库上建 schema + 种子，再跑端到端测试
+      - name: e2e 建库
+        env:
+          DATABASE_URL: postgresql://zhangben:zhangben@localhost:5432/zhangben_test?schema=public
+        run: npx prisma migrate deploy
+      - name: e2e 种子
+        env:
+          DATABASE_URL: postgresql://zhangben:zhangben@localhost:5432/zhangben_test?schema=public
+        run: npm run seed
+      - name: e2e 测试
+        env:
+          TEST_DATABASE_URL: postgresql://zhangben:zhangben@localhost:5432/zhangben_test?schema=public
+        run: npm run test:e2e
 
   frontend:
     runs-on: ubuntu-latest
@@ -51,4 +64,5 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
