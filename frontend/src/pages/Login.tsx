@@ -15,6 +15,7 @@ export default function Login() {
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('username', data.user.username);
       localStorage.setItem('role', data.user.role);
+      localStorage.setItem('user', JSON.stringify(data.user));
       message.success('登录成功');
       navigate('/');
     } catch (e: unknown) {
