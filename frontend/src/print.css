@@ -5,7 +5,8 @@
 }
 
 .sheet {
-  width: 190mm; /* 210 - 10*2 */
+  /* 留 5mm 安全余量：浏览器打印缩放/默认边距会占用一部分，190mm 贴边容易把最右列切掉 */
+  width: 185mm;
   margin: 10mm auto;
   padding: 0;
   font-family: "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
@@ -15,6 +16,14 @@
   background: #fff;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.15);
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* 屏幕预览时允许横向滚动，避免窄窗口把凭证右侧切掉 */
+@media screen {
+  body {
+    overflow-x: auto;
+  }
 }
 
 .sheet .doc-title {

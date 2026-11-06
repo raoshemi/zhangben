@@ -88,11 +88,11 @@ export default function VoucherPrint() {
       <table>
         <thead>
           <tr>
-            <th style={{ width: '48mm' }}>摘要</th>
-            <th style={{ width: '54mm' }}>会计科目</th>
-            <th style={{ width: '40mm' }}>借方金额</th>
-            <th style={{ width: '40mm' }}>贷方金额</th>
-            <th style={{ width: '8mm' }}>√</th>
+            <th style={{ width: '46mm' }}>摘要</th>
+            <th style={{ width: '53mm' }}>会计科目</th>
+            <th style={{ width: '38mm' }}>借方金额</th>
+            <th style={{ width: '38mm' }}>贷方金额</th>
+            <th style={{ width: '10mm' }}>√</th>
           </tr>
         </thead>
         <tbody>
