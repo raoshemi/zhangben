@@ -228,6 +228,10 @@ export default function VoucherEdit({
             next.direction = account.balanceSide === 'credit' ? 'credit' : 'debit';
           }
           if (!r.summary.trim()) next.summary = account.name;
+        } else {
+          // 清空科目 = 放弃此前的手工方向，下次选科目重新跟随
+          next.directionTouched = false;
+          next.direction = 'debit';
         }
         return next;
       }),
@@ -484,24 +488,49 @@ export default function VoucherEdit({
         </Tooltip>
       ),
       dataIndex: 'direction',
-      width: 96,
-      render: (_, r) => (
-        <Segmented
-          size="small"
-          block
-          value={r.direction}
-          options={[
-            { label: '借', value: 'debit' },
-            { label: '贷', value: 'credit' },
-          ]}
-          onChange={(v) =>
-            updateRow(r.key, {
-              direction: v as Direction,
-              directionTouched: true,
-            })
-          }
-        />
-      ),
+      width: 110,
+      render: (_, r) => {
+        const acc =
+          r.accountId != null ? accountById.get(r.accountId) : undefined;
+        const natural = acc?.balanceSide;
+        const opposite = natural != null && r.direction !== natural;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Segmented
+              size="small"
+              block
+              value={r.direction}
+              options={[
+                { label: '借', value: 'debit' },
+                { label: '贷', value: 'credit' },
+              ]}
+              onChange={(v) =>
+                updateRow(r.key, {
+                  direction: v as Direction,
+                  directionTouched: true,
+                })
+              }
+            />
+            {natural && (
+              <span
+                style={{
+                  fontSize: 11,
+                  lineHeight: 1,
+                  color: opposite ? '#d46b08' : 'rgba(0,0,0,.45)',
+                }}
+                title={
+                  opposite
+                    ? '与科目余额方向相反：仅红字冲销、备抵、汇兑损益等场景使用'
+                    : '科目余额方向'
+                }
+              >
+                科目方向：{natural === 'debit' ? '借' : '贷'}
+                {opposite && ' ⚠'}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '金额',
