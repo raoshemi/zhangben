@@ -18,7 +18,6 @@ import {
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import api from '../api/client';
-import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useBook } from '../context/BookContext';

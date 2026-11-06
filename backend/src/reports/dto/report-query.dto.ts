@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
-import { IsInt, Matches, Min } from 'class-validator';
+import { IsInt, IsOptional, Matches, Min } from 'class-validator';
+
+const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export class ReportQueryDto {
   @Type(() => Number)
@@ -7,8 +9,14 @@ export class ReportQueryDto {
   @Min(1, { message: 'bookId 必须大于 0' })
   bookId: number;
 
-  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
-    message: 'period 必须为 YYYY-MM 格式',
-  })
+  @Matches(PERIOD_RE, { message: 'period 必须为 YYYY-MM 格式' })
   period: string;
+
+  @IsOptional()
+  @Matches(PERIOD_RE, { message: 'startPeriod 必须为 YYYY-MM 格式' })
+  startPeriod?: string;
+
+  @IsOptional()
+  @Matches(PERIOD_RE, { message: 'endPeriod 必须为 YYYY-MM 格式' })
+  endPeriod?: string;
 }

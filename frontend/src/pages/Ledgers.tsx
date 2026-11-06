@@ -17,7 +17,6 @@ import { PrinterOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
 import AccountSelect from '../components/AccountSelect';
-import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useAccounts } from '../hooks/useAccounts';
@@ -246,10 +245,6 @@ export default function Ledgers() {
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
-          <Space size={4}>
-            <Typography.Text type="secondary">账套</Typography.Text>
-            
-          </Space>
           <Space size={4}>
             <Typography.Text type="secondary">期间</Typography.Text>
             <DatePicker

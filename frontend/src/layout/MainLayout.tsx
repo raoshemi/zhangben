@@ -118,6 +118,7 @@ export default function MainLayout() {
   const username = localStorage.getItem('username') ?? '用户';
   const { books, loading, bookId, setBookId, ready } = useBook();
   const [pending, setPending] = useState<number | undefined>();
+  const [switchTarget, setSwitchTarget] = useState<number | null>(null);
   // 未选中有效账套时强制选择（含账套列表为空时引导去创建）
   const needPick = !loading && !ready;
 
@@ -204,14 +205,7 @@ export default function MainLayout() {
               value={bookId}
               onChange={(v) => {
                 if (v === bookId) return;
-                const target = books.find((b) => b.id === v);
-                Modal.confirm({
-                  title: '切换账套',
-                  content: `确定切换到「${target?.name ?? v}」吗？切换后各页面数据都会跟随该账套刷新。`,
-                  okText: '切换',
-                  cancelText: '取消',
-                  onOk: () => setBookId(v),
-                });
+                setSwitchTarget(v);
               }}
               options={books.map((b) => ({ value: b.id, label: b.name }))}
               style={{ minWidth: 170 }}
@@ -273,6 +267,20 @@ export default function MainLayout() {
             />
           </>
         )}
+      </Modal>
+
+      <Modal
+        open={switchTarget != null}
+        title="切换账套"
+        okText="切换"
+        cancelText="取消"
+        onOk={() => {
+          if (switchTarget != null) setBookId(switchTarget);
+          setSwitchTarget(null);
+        }}
+        onCancel={() => setSwitchTarget(null)}
+      >
+        确定切换到「{books.find((b) => b.id === switchTarget)?.name ?? ''}」吗？切换后各页面数据都会跟随该账套刷新。
       </Modal>
     </Layout>
   );

@@ -121,7 +121,10 @@ function VoucherSheet({
   const no = String(voucher.voucherNo).padStart(4, '0');
 
   return (
-    <div className="sheet" style={{ breakAfter: 'page', pageBreakAfter: 'always' }}>
+    <div
+      className="sheet"
+      style={pageNo > 1 ? { breakBefore: 'page', pageBreakBefore: 'always' } : undefined}
+    >
       <div className="doc-title">记 账 凭 证</div>
       <div className="meta">
         <span>编制单位：{bookName}</span>

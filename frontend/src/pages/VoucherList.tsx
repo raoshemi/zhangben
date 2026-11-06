@@ -19,7 +19,6 @@ import type { TableColumnsType } from 'antd';
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
-import BookSelect from '../components/BookSelect';
 import PageHeader from '../components/PageHeader';
 import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';

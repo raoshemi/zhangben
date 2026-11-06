@@ -8,16 +8,26 @@ export class ReportsController {
 
   @Get('balance-sheet')
   balanceSheet(@Query() query: ReportQueryDto) {
-    return this.reports.balanceSheet(query.bookId, query.period);
+    // 资产负债表是「时点」报表，取结束期间
+    return this.reports.balanceSheet(query.bookId, query.endPeriod ?? query.period);
   }
 
   @Get('income-statement')
   incomeStatement(@Query() query: ReportQueryDto) {
-    return this.reports.incomeStatement(query.bookId, query.period);
+    // 利润表是「期间」报表，可跨月累计
+    return this.reports.incomeStatement(
+      query.bookId,
+      query.startPeriod ?? query.period,
+      query.endPeriod ?? query.period,
+    );
   }
 
   @Get('cash-flow')
   cashFlow(@Query() query: ReportQueryDto) {
-    return this.reports.cashFlow(query.bookId, query.period);
+    return this.reports.cashFlow(
+      query.bookId,
+      query.startPeriod ?? query.period,
+      query.endPeriod ?? query.period,
+    );
   }
 }

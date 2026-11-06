@@ -14,7 +14,6 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../api/client';
-import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useBook } from '../context/BookContext';

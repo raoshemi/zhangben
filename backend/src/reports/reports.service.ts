@@ -23,17 +23,37 @@ export class ReportsService {
     return { bookId, period, ...report };
   }
 
-  async incomeStatement(bookId: number, period: string) {
+  async incomeStatement(bookId: number, period: string, endPeriod?: string) {
     const standard = await this.ensureBook(bookId);
-    const balances = await this.resolveBalances(bookId, period);
+    const isRange = !!endPeriod && endPeriod !== period;
+    const balances = isRange
+      ? await this.resolveRangeActivity(bookId, period, endPeriod)
+      : await this.resolveBalances(bookId, period);
     const report = computeIncomeStatement(standard, balances);
-    return { bookId, period, ...report };
+    return {
+      bookId,
+      period: isRange ? `${period}~${endPeriod}` : period,
+      ...report,
+    };
   }
 
-  async cashFlow(bookId: number, period: string) {
+  async cashFlow(bookId: number, period: string, endPeriod?: string) {
     const standard = await this.ensureBook(bookId);
-    const balances = await this.resolveBalances(bookId, period);
-    const funds = monetaryFunds(balances);
+    const isRange = !!endPeriod && endPeriod !== period;
+
+    let beginning: string;
+    let ending: string;
+    if (isRange) {
+      const startBal = await this.resolveBalances(bookId, period);
+      const endBal = await this.resolveBalances(bookId, endPeriod);
+      beginning = monetaryFunds(startBal).beginning;
+      ending = monetaryFunds(endBal).ending;
+    } else {
+      const balances = await this.resolveBalances(bookId, period);
+      const funds = monetaryFunds(balances);
+      beginning = funds.beginning;
+      ending = funds.ending;
+    }
 
     const items = await this.prisma.cashFlowItem.findMany({
       where: { bookId },
@@ -42,7 +62,11 @@ export class ReportsService {
     const entries = await this.prisma.voucherEntry.findMany({
       where: {
         cashflowItemId: { not: null },
-        voucher: { bookId, period, status: 'posted' },
+        voucher: {
+          bookId,
+          period: isRange ? { gte: period, lte: endPeriod } : period,
+          status: 'posted',
+        },
       },
       select: { cashflowItemId: true, direction: true, amount: true },
     });
@@ -55,10 +79,14 @@ export class ReportsService {
         direction: e.direction,
         amount: e.amount,
       })),
-      funds.beginning,
-      funds.ending,
+      beginning,
+      ending,
     );
-    return { bookId, period, ...report };
+    return {
+      bookId,
+      period: isRange ? `${period}~${endPeriod}` : period,
+      ...report,
+    };
   }
 
   private async ensureBook(bookId: number): Promise<AccountingStandard> {
@@ -155,5 +183,43 @@ export class ReportsService {
         finalCredit,
       };
     });
+  }
+
+  /** 汇总某期间范围的科目发生额（用于利润表等「期间」报表的跨月累计） */
+  private async resolveRangeActivity(
+    bookId: number,
+    start: string,
+    end: string,
+  ): Promise<BalanceRecord[]> {
+    const accounts = await this.prisma.account.findMany({
+      where: { bookId },
+      orderBy: { code: 'asc' },
+    });
+    const entries = await this.prisma.voucherEntry.findMany({
+      where: {
+        voucher: { bookId, period: { gte: start, lte: end }, status: 'posted' },
+      },
+      select: { accountId: true, direction: true, amount: true },
+    });
+    const debit = new Map<number, Prisma.Decimal>();
+    const credit = new Map<number, Prisma.Decimal>();
+    for (const e of entries) {
+      const d = e.direction === 'debit' ? e.amount : new Decimal(0);
+      const c = e.direction === 'credit' ? e.amount : new Decimal(0);
+      debit.set(e.accountId, (debit.get(e.accountId) ?? new Decimal(0)).plus(d));
+      credit.set(e.accountId, (credit.get(e.accountId) ?? new Decimal(0)).plus(c));
+    }
+    return accounts.map((a) => ({
+      code: a.code,
+      name: a.name,
+      category: a.category,
+      balanceSide: a.balanceSide,
+      initialDebit: new Decimal(0),
+      initialCredit: new Decimal(0),
+      debit: debit.get(a.id) ?? new Decimal(0),
+      credit: credit.get(a.id) ?? new Decimal(0),
+      finalDebit: new Decimal(0),
+      finalCredit: new Decimal(0),
+    }));
   }
 }

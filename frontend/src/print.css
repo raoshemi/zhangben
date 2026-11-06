@@ -1,13 +1,12 @@
-/* ===== A4 打印基础（按《会计逻辑与A4打印规范》§4.5） ===== */
+/* ===== A4 打印基础 ===== */
 @page {
   size: A4 portrait;
-  margin: 12mm 10mm; /* 页边距只在这里设置，容器不要再叠加 */
+  margin: 0; /* 页边距归零，由 .sheet 自身控制，避免浏览器默认边距叠加 */
 }
 
 .sheet {
-  /* 留 5mm 安全余量：浏览器打印缩放/默认边距会占用一部分，190mm 贴边容易把最右列切掉 */
-  width: 185mm;
-  margin: 10mm auto;
+  width: 190mm; /* 210 - 左右各 10mm */
+  margin: 12mm auto; /* 上边距 12mm，左右自动居中（各 10mm） */
   padding: 0;
   font-family: "SimSun", "Songti SC", "Noto Serif CJK SC", serif;
   color: #000;
@@ -16,7 +15,6 @@
   background: #fff;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.15);
   box-sizing: border-box;
-  overflow: hidden;
 }
 
 /* 屏幕预览时允许横向滚动，避免窄窗口把凭证右侧切掉 */
@@ -122,7 +120,6 @@
     display: none !important;
   }
   .sheet {
-    margin: 0;
     box-shadow: none;
   }
   html,

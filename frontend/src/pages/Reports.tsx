@@ -24,7 +24,6 @@ import {
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
-import BookSelect from '../components/BookSelect';
 import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useBook } from '../context/BookContext';
@@ -122,7 +121,7 @@ const columns: ColumnsType<ReportRow> = [
 
 export default function Reports() {
   const { books, bookId, setBookId, loading: booksLoading } = useBook();
-  const [period, setPeriod] = useState<Dayjs | null>(dayjs());
+  const [range, setRange] = useState<[Dayjs, Dayjs] | null>([dayjs(), dayjs()]);
   const [activeTab, setActiveTab] = useState<TabKey>('balance');
 
   const [data, setData] = useState<Partial<Record<TabKey, unknown>>>({});
@@ -139,7 +138,7 @@ export default function Reports() {
   const reqIdRef = useRef(0);
 
   const fetchReport = useCallback(
-    async (key: TabKey, params: { bookId: number; period: string }, reqId: number) => {
+    async (key: TabKey, params: { bookId: number; period: string; startPeriod?: string; endPeriod?: string }, reqId: number) => {
       try {
         const res = await api.get(TAB_META[key].url, { params });
         if (reqIdRef.current !== reqId) return;
@@ -169,14 +168,15 @@ export default function Reports() {
    * 切换标签只读本地 state，不再发请求；单张失败也只影响该标签页。
    */
   const runQuery = useCallback(
-    async (nextBookId?: number, nextPeriod?: Dayjs | null) => {
+    async (nextBookId?: number, nextRange?: [Dayjs, Dayjs] | null) => {
       const b = nextBookId ?? bookId;
-      const p = nextPeriod ?? period;
-      if (!b || !p) {
-        message.warning('请先选择账套与期间');
+      const r = nextRange ?? range;
+      if (!b || !r || !r[0] || !r[1]) {
+        message.warning('请先选择账套与起止期间');
         return;
       }
-      const periodStr = p.format('YYYY-MM');
+      const startStr = r[0].format('YYYY-MM');
+      const endStr = r[1].format('YYYY-MM');
       const reqId = ++reqIdRef.current;
       setQuerying(true);
       setData({});
@@ -184,24 +184,24 @@ export default function Reports() {
       setLoadingTabs([...TAB_KEYS]);
       setQueried({
         bookId: b,
-        period: periodStr,
+        period: endStr,
         at: dayjs().format('YYYY-MM-DD HH:mm:ss'),
       });
-      const params = { bookId: b, period: periodStr };
+      const params = { bookId: b, period: endStr, startPeriod: startStr, endPeriod: endStr };
       await Promise.all(TAB_KEYS.map((key) => fetchReport(key, params, reqId)));
       if (reqIdRef.current === reqId) setQuerying(false);
     },
-    [bookId, period, fetchReport],
+    [bookId, range, fetchReport],
   );
 
-  // 账套/期间变化时自动加载本期报表（账套已全局选择，跟随顶栏切换）
+  // 账套/期间变化时自动加载（账套已全局选择，跟随顶栏切换）
   useEffect(() => {
-    if (!bookId || !period) return;
-    void runQuery(bookId, period);
-  }, [bookId, period, runQuery]);
+    if (!bookId || !range) return;
+    void runQuery(bookId, range);
+  }, [bookId, range, runQuery]);
 
   const retryTab = async (key: TabKey) => {
-    if (!bookId || !period) return;
+    if (!bookId || !range || !range[0] || !range[1]) return;
     const reqId = ++reqIdRef.current;
     setLoadingTabs((prev) => [...new Set([...prev, key])]);
     setErrors((prev) => {
@@ -209,10 +209,21 @@ export default function Reports() {
       delete next[key];
       return next;
     });
-    await fetchReport(key, { bookId, period: period.format('YYYY-MM') }, reqId);
+    await fetchReport(
+      key,
+      {
+        bookId,
+        period: range[1].format('YYYY-MM'),
+        startPeriod: range[0].format('YYYY-MM'),
+        endPeriod: range[1].format('YYYY-MM'),
+      },
+      reqId,
+    );
   };
 
-  const periodStr = period?.format('YYYY-MM') ?? '';
+  const periodStr = range?.[1]?.format('YYYY-MM') ?? '';
+  const startStr = range?.[0]?.format('YYYY-MM') ?? '';
+  const endStr = periodStr;
   const stale =
     !!queried && (queried.bookId !== bookId || queried.period !== periodStr);
   const loadedCount = TAB_KEYS.filter((k) => !!data[k]).length;
@@ -429,16 +440,13 @@ export default function Reports() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
           <Space size={4}>
-            <Typography.Text type="secondary">账套</Typography.Text>
-            
-          </Space>
-          <Space size={4}>
-            <Typography.Text type="secondary">期间</Typography.Text>
-            <DatePicker
+            <Typography.Text type="secondary">起止期间</Typography.Text>
+            <DatePicker.RangePicker
               picker="month"
-              value={period}
-              onChange={setPeriod}
+              value={range}
+              onChange={(v) => setRange(v as [Dayjs, Dayjs] | null)}
               allowClear={false}
+              style={{ width: 260 }}
             />
           </Space>
           <Button
@@ -456,16 +464,14 @@ export default function Reports() {
           >
             <Button
               icon={<PrinterOutlined />}
-              disabled={!data[activeTab] || !bookId || !period}
+              disabled={!data[activeTab] || !bookId || !range}
               onClick={() => {
-                if (!bookId || !period) {
-                  message.error('请先选择账套与期间');
+                if (!bookId || !range) {
+                  message.error('请先选择账套与起止期间');
                   return;
                 }
                 window.open(
-                  `/print/report?bookId=${bookId}&period=${period.format(
-                    'YYYY-MM',
-                  )}&type=${activeTab}`,
+                  `/print/report?bookId=${bookId}&period=${endStr}&startPeriod=${startStr}&endPeriod=${endStr}&type=${activeTab}`,
                   '_blank',
                 );
               }}
@@ -474,18 +480,15 @@ export default function Reports() {
             </Button>
           </Tooltip>
           <Button
-            disabled={!bookId || !period}
+            disabled={!bookId || !range}
             onClick={() => {
-              if (!bookId || !period) {
-                message.error('请先选择账套与期间');
+              if (!bookId || !range) {
+                message.error('请先选择账套与起止期间');
                 return;
               }
-              const base = `/print/report?bookId=${bookId}&period=${period.format(
-                'YYYY-MM',
-              )}&type=`;
-              // 一次打开三张报表的打印页（资产负债表 / 利润表 / 现金流量表）
-              ['balance', 'income', 'cashflow'].forEach((t) =>
-                window.open(base + t, '_blank'),
+              window.open(
+                `/print/report?bookId=${bookId}&period=${endStr}&startPeriod=${startStr}&endPeriod=${endStr}&type=all`,
+                '_blank',
               );
             }}
           >

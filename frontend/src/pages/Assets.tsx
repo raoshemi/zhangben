@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
@@ -22,6 +22,7 @@ import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import api from '../api/client';
 import { useRole } from '../hooks/useRole';
+import { useBook } from '../context/BookContext';
 
 const { Title } = Typography;
 
@@ -74,10 +75,9 @@ interface AssetFormValues {
 
 export default function Assets() {
   const { isReadOnly } = useRole();
-  const [books, setBooks] = useState<Book[]>([]);
+  const { bookId, book } = useBook();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
-  const [bookFilter, setBookFilter] = useState<number | undefined>(undefined);
 
   const [accountOptions, setAccountOptions] = useState<AccountOption[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -90,19 +90,11 @@ export default function Assets() {
   const [depreciating, setDepreciating] = useState(false);
 
   const [form] = Form.useForm<AssetFormValues>();
-  const watchedBookId = Form.useWatch('bookId', form);
-
-  useEffect(() => {
-    api
-      .get('/ledgers/books')
-      .then((res) => setBooks(res.data.rows ?? []))
-      .catch(() => setBooks([]));
-  }, []);
 
   const loadAssets = useCallback(async () => {
     setLoading(true);
     try {
-      const params = bookFilter ? { bookId: bookFilter } : {};
+      const params = bookId ? { bookId } : {};
       const res = await api.get('/assets', { params });
       setAssets(res.data ?? []);
     } catch {
@@ -110,7 +102,7 @@ export default function Assets() {
     } finally {
       setLoading(false);
     }
-  }, [bookFilter]);
+  }, [bookId]);
 
   useEffect(() => {
     loadAssets();
@@ -133,10 +125,10 @@ export default function Assets() {
   }, []);
 
   useEffect(() => {
-    if (modalOpen && watchedBookId) {
-      loadAccounts(watchedBookId);
+    if (modalOpen && bookId) {
+      loadAccounts(bookId);
     }
-  }, [modalOpen, watchedBookId, loadAccounts]);
+  }, [modalOpen, bookId, loadAccounts]);
 
   const openCreate = () => {
     setEditing(null);
@@ -144,7 +136,7 @@ export default function Assets() {
     form.setFieldsValue({
       depreciationMethod: 'straight_line',
       residualRate: 0.05,
-      bookId: bookFilter ?? books[0]?.id,
+      bookId: bookId,
     });
     setModalOpen(true);
   };
@@ -189,7 +181,7 @@ export default function Assets() {
         await api.patch(`/assets/${editing.id}`, payload);
         message.success('已保存');
       } else {
-        await api.post('/assets', { ...payload, bookId: values.bookId });
+        await api.post('/assets', { ...payload, bookId });
         message.success('已新增固定资产');
       }
       setModalOpen(false);
@@ -341,18 +333,9 @@ export default function Assets() {
       )}
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap>
-          <span>账套：</span>
-          <Select
-            style={{ width: 260 }}
-            placeholder="全部账套"
-            allowClear
-            value={bookFilter}
-            onChange={setBookFilter}
-            options={books.map((b) => ({
-              value: b.id,
-              label: `${b.name}（${b.accountingStandard === 'enterprise' ? '企业' : '小企业'}）`,
-            }))}
-          />
+          <span style={{ color: 'rgba(0,0,0,0.45)' }}>
+            当前账套：{book?.name ?? '未选择'}
+          </span>
           <Button icon={<ReloadOutlined />} onClick={loadAssets}>
             刷新
           </Button>
@@ -395,21 +378,6 @@ export default function Assets() {
         width={640}
       >
         <Form form={form} layout="vertical">
-          {!editing && (
-            <Form.Item
-              name="bookId"
-              label="账套"
-              rules={[{ required: true, message: '请选择账套' }]}
-            >
-              <Select
-                placeholder="请选择账套"
-                options={books.map((b) => ({
-                  value: b.id,
-                  label: `${b.name}（${b.accountingStandard === 'enterprise' ? '企业' : '小企业'}）`,
-                }))}
-              />
-            </Form.Item>
-          )}
           <Form.Item
             name="code"
             label="资产编码"
