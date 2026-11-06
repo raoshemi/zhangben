@@ -1,0 +1,47 @@
+name: zhangben
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: zhangben-db
+    environment:
+      POSTGRES_DB: zhangben
+      POSTGRES_USER: zhangben
+      POSTGRES_PASSWORD: zhangben
+      TZ: Asia/Shanghai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zhangben -d zhangben"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: zhangben-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://zhangben:zhangben@db:5432/zhangben?schema=public
+      JWT_SECRET: change-me-in-production
+      PORT: 8080
+      TZ: Asia/Shanghai
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: zhangben-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

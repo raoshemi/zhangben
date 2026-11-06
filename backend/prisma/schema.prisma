@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户与权限
+model User {
+  id           Int    @id @default(autoincrement())
+  username     String    @unique @db.VarChar(50)
+  passwordHash String    @map("password_hash") @db.VarChar(100)
+  displayName  String?   @map("display_name") @db.VarChar(100)
+  role         String    @db.VarChar(20) // admin|bookkeeper|approver|poster|viewer
+  enabled      Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  auditLogs        AuditLog[]
+  createdVouchers  Voucher[]        @relation("VoucherCreator")
+  reviewedVouchers Voucher[]        @relation("VoucherReviewer")
+  postedVouchers   Voucher[]        @relation("VoucherPoster")
+  closedPeriods    Period[]
+
+  @@map("users")
+}
+
+// 审计日志
+model AuditLog {
+  id         Int    @id @default(autoincrement())
+  userId     Int?   @map("user_id")
+  user       User?     @relation(fields: [userId], references: [id])
+  action     String    @db.VarChar(50)
+  entityType String?   @map("entity_type") @db.VarChar(50)
+  entityId   Int?   @map("entity_id")
+  beforeJson Json?     @map("before_json")
+  afterJson  Json?     @map("after_json")
+  ip         String?   @db.VarChar(50)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("audit_log")
+}
+
+// 账套
+model AccountBook {
+  id                 Int    @id @default(autoincrement())
+  name               String    @db.VarChar(100)
+  accountingStandard String    @map("accounting_standard") @db.VarChar(20) // enterprise|small
+  baseCurrency       String    @default("CNY") @map("base_currency") @db.VarChar(3)
+  startDate          DateTime  @map("start_date") @db.Date
+  endDate            DateTime  @map("end_date") @db.Date
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  accounts        Account[]
+  auxiliaryItems  AuxiliaryItem[]
+  cashFlowItems   CashFlowItem[]
+  vouchers        Voucher[]
+  balances        AccountBalance[]
+  periods         Period[]
+  assets          Asset[]
+  reportTemplates ReportTemplate[]
+
+  @@map("account_book")
+}
+
+// 会计科目
+model Account {
+  id            Int   @id @default(autoincrement())
+  bookId        Int   @map("book_id")
+  book          AccountBook @relation(fields: [bookId], references: [id])
+  code          String   @db.VarChar(50)
+  name          String   @db.VarChar(100)
+  category      String   @db.VarChar(20) // asset|liability|common|equity|cost|pnl
+  balanceSide   String   @map("balance_side") @db.VarChar(10) // debit|credit
+  level         Int      @default(1)
+  parentId      Int?  @map("parent_id")
+  parent        Account? @relation("AccountChildren", fields: [parentId], references: [id])
+  children      Account[] @relation("AccountChildren")
+  isLeaf        Boolean  @default(true) @map("is_leaf")
+  auxFlags      Json?    @map("aux_flags") // ["customer","supplier","department","employee","project","cashflow"]
+  isQuantity    Boolean  @default(false) @map("is_quantity")
+  isForeign     Boolean  @default(false) @map("is_foreign")
+  initialDebit  Decimal  @default(0) @map("initial_debit") @db.Decimal(18, 2)
+  initialCredit Decimal  @default(0) @map("initial_credit") @db.Decimal(18, 2)
+  isActive      Boolean  @default(true) @map("is_active")
+
+  entries            VoucherEntry[]
+  balances           AccountBalance[]
+  depreciationAssets Asset[]            @relation("AssetDepreciationAccount")
+  accumAssets        Asset[]            @relation("AssetAccumDepreciationAccount")
+
+  @@unique([bookId, code])
+  @@map("account")
+}
+
+// 辅助核算项
+model AuxiliaryItem {
+  id       Int   @id @default(autoincrement())
+  bookId   Int   @map("book_id")
+  book     AccountBook @relation(fields: [bookId], references: [id])
+  auxType  String   @map("aux_type") @db.VarChar(20) // customer|supplier|department|employee|project
+  code     String   @db.VarChar(50)
+  name     String   @db.VarChar(100)
+  isActive Boolean  @default(true) @map("is_active")
+
+  entryAuxs VoucherEntryAux[]
+
+  @@unique([bookId, auxType, code])
+  @@map("auxiliary_item")
+}
+
+// 现金流量项目
+model CashFlowItem {
+  id       Int   @id @default(autoincrement())
+  bookId   Int   @map("book_id")
+  book     AccountBook @relation(fields: [bookId], references: [id])
+  code     String   @db.VarChar(50)
+  name     String   @db.VarChar(100)
+  category String   @db.VarChar(20) // operating|investing|financing
+  isActive Boolean  @default(true) @map("is_active")
+
+  entries VoucherEntry[]
+
+  @@unique([bookId, code])
+  @@map("cash_flow_item")
+}
+
+// 记账凭证（头）
+model Voucher {
+  id              Int    @id @default(autoincrement())
+  bookId          Int    @map("book_id")
+  book            AccountBook @relation(fields: [bookId], references: [id])
+  period          String    @db.VarChar(7) // YYYY-MM
+  date            DateTime  @db.Date
+  voucherType     String    @map("voucher_type") @db.VarChar(10) // 记|收|付|转
+  voucherNo       Int       @map("voucher_no")
+  attachmentCount Int       @default(0) @map("attachment_count")
+  status          String    @default("draft") @db.VarChar(20) // draft|submitted|approved|posted|voided
+  source          String    @default("manual") @db.VarChar(20) // manual|closing|depreciation|auto
+  creatorId       Int?   @map("creator_id")
+  reviewerId      Int?   @map("reviewer_id")
+  posterId        Int?   @map("poster_id")
+  creator         User?     @relation("VoucherCreator", fields: [creatorId], references: [id])
+  reviewer        User?     @relation("VoucherReviewer", fields: [reviewerId], references: [id])
+  poster          User?     @relation("VoucherPoster", fields: [posterId], references: [id])
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  postedAt        DateTime? @map("posted_at") @db.Timestamptz(6)
+
+  entries        VoucherEntry[]
+  assetDepreciations AssetDepreciation[]
+
+  @@unique([bookId, period, voucherType, voucherNo])
+  @@index([bookId, period])
+  @@map("voucher")
+}
+
+// 记账凭证（分录体）
+model VoucherEntry {
+  id              Int    @id @default(autoincrement())
+  voucherId       Int    @map("voucher_id")
+  voucher         Voucher   @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  lineNo          Int       @map("line_no")
+  summary         String    @db.VarChar(200)
+  accountId       Int    @map("account_id")
+  account         Account   @relation(fields: [accountId], references: [id])
+  direction       String    @db.VarChar(10) // debit|credit
+  amount          Decimal   @db.Decimal(18, 2)
+  originalAmount  Decimal?  @map("original_amount") @db.Decimal(18, 2)
+  exchangeRate    Decimal?  @map("exchange_rate") @db.Decimal(10, 6)
+  cashflowItemId  Int?   @map("cashflow_item_id")
+  cashflowItem    CashFlowItem? @relation(fields: [cashflowItemId], references: [id])
+
+  auxs VoucherEntryAux[]
+
+  @@unique([voucherId, lineNo])
+  @@index([accountId])
+  @@map("voucher_entry")
+}
+
+// 分录辅助核算明细
+model VoucherEntryAux {
+  id              Int        @id @default(autoincrement())
+  entryId         Int        @map("entry_id")
+  entry           VoucherEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  auxType         String        @map("aux_type") @db.VarChar(20)
+  auxiliaryItemId Int        @map("auxiliary_item_id")
+  auxiliaryItem   AuxiliaryItem @relation(fields: [auxiliaryItemId], references: [id])
+
+  @@unique([entryId, auxType, auxiliaryItemId])
+  @@map("voucher_entry_aux")
+}
+
+// 科目余额（按期间物化快照）
+model AccountBalance {
+  id            Int   @id @default(autoincrement())
+  bookId        Int   @map("book_id")
+  book          AccountBook @relation(fields: [bookId], references: [id])
+  period        String   @db.VarChar(7)
+  accountId     Int   @map("account_id")
+  account       Account  @relation(fields: [accountId], references: [id])
+  initialDebit  Decimal  @default(0) @map("initial_debit") @db.Decimal(18, 2)
+  initialCredit Decimal  @default(0) @map("initial_credit") @db.Decimal(18, 2)
+  debit         Decimal  @default(0) @db.Decimal(18, 2)
+  credit        Decimal  @default(0) @db.Decimal(18, 2)
+  finalDebit    Decimal  @default(0) @map("final_debit") @db.Decimal(18, 2)
+  finalCredit   Decimal  @default(0) @map("final_credit") @db.Decimal(18, 2)
+
+  @@unique([bookId, period, accountId])
+  @@map("account_balance")
+}
+
+// 会计期间
+model Period {
+  id        Int    @id @default(autoincrement())
+  bookId    Int    @map("book_id")
+  book      AccountBook @relation(fields: [bookId], references: [id])
+  period    String    @db.VarChar(7)
+  status    String    @default("open") @db.VarChar(10) // open|closed
+  isYearEnd Boolean   @default(false) @map("is_year_end")
+  closedById Int?  @map("closed_by")
+  closedBy  User?     @relation(fields: [closedById], references: [id])
+  closedAt  DateTime? @map("closed_at") @db.Timestamptz(6)
+
+  @@unique([bookId, period])
+  @@map("period")
+}
+
+// 固定资产卡片
+model Asset {
+  id                             Int    @id @default(autoincrement())
+  bookId                         Int    @map("book_id")
+  book                           AccountBook @relation(fields: [bookId], references: [id])
+  code                           String    @db.VarChar(50)
+  name                           String    @db.VarChar(100)
+  category                       String?   @db.VarChar(50)
+  originalValue                  Decimal   @map("original_value") @db.Decimal(18, 2)
+  residualRate                   Decimal   @default(0.05) @map("residual_rate") @db.Decimal(8, 4)
+  usefulLife                     Int       @map("useful_life") // 月
+  depreciationMethod             String    @default("straight_line") @map("depreciation_method") @db.VarChar(20)
+  startDate                      DateTime  @map("start_date") @db.Date
+  depreciationAccountId          Int    @map("depreciation_account_id")
+  depreciationAccount            Account   @relation("AssetDepreciationAccount", fields: [depreciationAccountId], references: [id])
+  accumulatedDepreciationAccountId Int  @map("accumulated_depreciation_account_id")
+  accumulatedDepreciationAccount Account   @relation("AssetAccumDepreciationAccount", fields: [accumulatedDepreciationAccountId], references: [id])
+  isActive                       Boolean   @default(true) @map("is_active")
+
+  depreciations AssetDepreciation[]
+
+  @@unique([bookId, code])
+  @@map("asset")
+}
+
+// 固定资产折旧
+model AssetDepreciation {
+  id        Int    @id @default(autoincrement())
+  assetId   Int    @map("asset_id")
+  asset     Asset     @relation(fields: [assetId], references: [id])
+  period    String    @db.VarChar(7)
+  amount    Decimal   @db.Decimal(18, 2)
+  voucherId Int?   @map("voucher_id")
+  voucher   Voucher?  @relation(fields: [voucherId], references: [id])
+
+  @@unique([assetId, period])
+  @@map("asset_depreciation")
+}
+
+// 报表模板
+model ReportTemplate {
+  id       Int       @id @default(autoincrement())
+  bookId   Int?      @map("book_id")
+  book     AccountBook? @relation(fields: [bookId], references: [id])
+  standard String       @db.VarChar(20) // cas2019|cas2026|small
+  name     String       @db.VarChar(100)
+  body     Json
+
+  @@map("report_template")
+}
