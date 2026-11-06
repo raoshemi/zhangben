@@ -148,4 +148,17 @@ test.describe('回归验证', () => {
     const ids2 = ((await list2.json()) as { id: number }[]).map((b) => b.id);
     expect(ids2).toContain(bookId);
   });
+
+  test('viewer 角色不能创建凭证（403，越权修复）', async ({ request }) => {
+    const loginRes = await request.post('/api/auth/login', {
+      data: { username: 'viewer', password: 'viewer123' },
+    });
+    expect(loginRes.ok()).toBeTruthy();
+    const token = (await loginRes.json()).access_token as string;
+    const res = await request.post('/api/vouchers', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {},
+    });
+    expect(res.status()).toBe(403);
+  });
 });

@@ -7,13 +7,14 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
+import { resolveJwtSecret } from '../config/security';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.registerAsync({
       useFactory: () => ({
-        secret: process.env.JWT_SECRET ?? 'dev-secret',
+        secret: resolveJwtSecret(),
         signOptions: { expiresIn: '12h' },
       }),
     }),

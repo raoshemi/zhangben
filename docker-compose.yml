@@ -11,8 +11,9 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # 只监听本机回环，避免数据库暴露到局域网；本机测试/运维仍可用 localhost:5433
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zhangben -d zhangben"]
       interval: 5s
@@ -27,7 +28,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://zhangben:zhangben@db:5432/zhangben?schema=public
-      JWT_SECRET: change-me-in-production
+      # 开发默认值仅用于本地；生产必须用 .env 覆盖为随机长串
+      JWT_SECRET: ${JWT_SECRET:-zhangben-dev-local-only-secret-please-change-32}
       PORT: 8080
       TZ: Asia/Shanghai
     ports:

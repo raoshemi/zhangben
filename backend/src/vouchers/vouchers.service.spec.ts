@@ -54,6 +54,10 @@ function createMockPrisma() {
   const accountBalance = { findUnique: jest.fn(), upsert: jest.fn() };
   const period = { findUnique: jest.fn() };
   const voucherEntry = { deleteMany: jest.fn() };
+  // 归档校验：默认返回启用中的账套，避免每个用例各自 mock
+  const accountBook = {
+    findUnique: jest.fn().mockResolvedValue({ isActive: true }),
+  };
 
   const tx = {
     voucher,
@@ -63,6 +67,7 @@ function createMockPrisma() {
     accountBalance,
     period,
     voucherEntry,
+    accountBook,
   };
 
   const prisma = {

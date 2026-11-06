@@ -23,6 +23,7 @@ import { AuthUser, CurrentUser } from '../auth/current-user.decorator';
 export class VouchersController {
   constructor(private readonly vouchers: VouchersService) {}
 
+  @Roles('admin', 'bookkeeper')
   @Post()
   create(@Body() dto: CreateVoucherDto, @CurrentUser() user: AuthUser) {
     return this.vouchers.create(dto, user);
@@ -38,6 +39,7 @@ export class VouchersController {
     return this.vouchers.findOne(id);
   }
 
+  @Roles('admin', 'bookkeeper')
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -47,6 +49,7 @@ export class VouchersController {
     return this.vouchers.update(id, dto, user);
   }
 
+  @Roles('admin', 'bookkeeper')
   @Post(':id/submit')
   submit(@Param('id', ParseIntPipe) id: number) {
     return this.vouchers.submit(id);
@@ -70,6 +73,7 @@ export class VouchersController {
     return this.vouchers.reverse(id, user);
   }
 
+  @Roles('admin', 'bookkeeper')
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.vouchers.remove(id);

@@ -140,8 +140,10 @@ export class VouchersService {
     return this.prisma.$transaction(async (tx) => {
       const voucher = await tx.voucher.findUnique({ where: { id } });
       if (!voucher) throw new NotFoundException('凭证不存在');
-      if (voucher.status !== 'draft' && voucher.status !== 'submitted') {
-        throw new BadRequestException('仅草稿或已提交状态的凭证可编辑');
+      if (voucher.status !== 'draft') {
+        throw new BadRequestException(
+          '仅草稿状态的凭证可编辑；已提交的请先作废后重新录入',
+        );
       }
       await this.assertPeriodOpen(tx, voucher.bookId, voucher.period);
 
