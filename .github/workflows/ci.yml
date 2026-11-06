@@ -36,7 +36,6 @@ jobs:
       - run: npx prisma generate
       - run: npm test
       - run: npm run build
-      # e2e：在独立测试库上建 schema + 种子，再跑端到端测试
       - name: e2e 建库
         env:
           DATABASE_URL: postgresql://zhangben:zhangben@localhost:5432/zhangben_test?schema=public
@@ -66,3 +65,27 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  e2e-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 启动全栈（Docker）
+        run: docker compose up -d --build
+      - name: 等待前端就绪
+        run: |
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
+              echo "ready"; break
+            fi
+            sleep 3
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
