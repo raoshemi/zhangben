@@ -82,4 +82,15 @@ test.describe('回归验证', () => {
     expect(overflow).toBeGreaterThanOrEqual(0);
     expect(overflow).toBeLessThanOrEqual(1);
   });
+
+  test('日期面板月份为中文（老会计看得懂）', async ({ page }) => {
+    await login(page, 'admin', 'admin123');
+    await gotoMenu(page, '财务报表');
+    await page.locator('.ant-picker-range').click();
+    // 月份格应显示「1月」「2月」而不是 Jan/Feb
+    await expect(page.getByText('1月', { exact: true }).first()).toBeVisible({
+      timeout: 5000,
+    });
+    await expect(page.getByText('12月', { exact: true }).first()).toBeVisible();
+  });
 });
