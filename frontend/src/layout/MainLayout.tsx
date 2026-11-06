@@ -162,7 +162,7 @@ export default function MainLayout() {
             overflow: 'hidden',
           }}
         >
-          账本记账系统
+          周会计记账系统
         </div>
         <Menu
           theme="dark"

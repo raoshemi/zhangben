@@ -2,7 +2,7 @@
   "name": "zhangben-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "账本记账系统后端（NestJS + Prisma + PostgreSQL）",
+  "description": "周会计记账系统后端（NestJS + Prisma + PostgreSQL）",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "nest start",

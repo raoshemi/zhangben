@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('账本记账系统 浏览器 E2E', () => {
+test.describe('周会计记账系统 浏览器 E2E', () => {
   test('登录页渲染用户名与密码输入框', async ({ page }) => {
     await page.goto('/login');
     await expect(page.locator('input[placeholder="用户名"]')).toBeVisible();

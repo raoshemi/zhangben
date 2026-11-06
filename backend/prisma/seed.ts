@@ -38,7 +38,7 @@ async function insertAccountTree(
 }
 
 async function main() {
-  console.log('Seeding 账本记账系统 ...');
+  console.log('Seeding 周会计记账系统 ...');
 
   // 默认管理员
   const admin = await prisma.user.upsert({

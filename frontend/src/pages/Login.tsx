@@ -36,7 +36,7 @@ export default function Login() {
         background: '#f0f2f5',
       }}
     >
-      <Card title="账本记账系统" style={{ width: 360 }}>
+      <Card title="周会计记账系统" style={{ width: 360 }}>
         <Form onFinish={onFinish}>
           <Form.Item
             name="username"
