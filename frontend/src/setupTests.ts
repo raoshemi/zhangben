@@ -14,3 +14,8 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   })),
 });
+
+// jsdom 不支持 getComputedStyle 的伪元素查询（rc-table 滚动条测量会用到），忽略第二个参数避免抛错
+const originalGetComputedStyle = window.getComputedStyle;
+window.getComputedStyle = ((elt: Element) =>
+  originalGetComputedStyle(elt)) as typeof window.getComputedStyle;

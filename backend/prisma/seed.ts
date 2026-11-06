@@ -58,6 +58,7 @@ async function main() {
     { username: 'bookkeeper', password: 'bookkeeper123', role: 'bookkeeper', displayName: '制单员' },
     { username: 'approver', password: 'approver123', role: 'approver', displayName: '审核员' },
     { username: 'poster', password: 'poster123', role: 'poster', displayName: '记账员' },
+    { username: 'viewer', password: 'viewer123', role: 'viewer', displayName: '查看员' },
   ];
   for (const u of demoUsers) {
     await prisma.user.upsert({
