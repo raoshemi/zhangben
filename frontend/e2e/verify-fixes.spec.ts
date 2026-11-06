@@ -172,4 +172,17 @@ test.describe('回归验证', () => {
     const token = await page.evaluate(() => localStorage.getItem('token'));
     expect(token).toBeNull();
   });
+
+  test('账套管理有「启用中/已归档/全部」三段筛选', async ({ page }) => {
+    await login(page, 'admin', 'admin123');
+    await gotoMenu(page, '账套管理');
+    await expect(page.getByText('启用中', { exact: true })).toBeVisible();
+    await expect(page.getByText('已归档', { exact: true })).toBeVisible();
+    await expect(page.getByText('全部', { exact: true })).toBeVisible();
+    // 选中即筛选，无「确定」按钮
+    await page.getByText('全部', { exact: true }).click();
+    await expect(
+      page.locator('.ant-segmented-item-selected', { hasText: '全部' }),
+    ).toBeVisible();
+  });
 });

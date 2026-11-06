@@ -9,6 +9,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Segmented,
   Select,
   Space,
   Table,
@@ -24,6 +25,7 @@ import api from '../api/client';
 import PageHeader from '../components/PageHeader';
 import { useBooks, type Book } from '../hooks/useBooks';
 import { useRole } from '../hooks/useRole';
+import { useBook } from '../context/BookContext';
 import { STANDARD_LABEL, errorMessage } from '../lib/format';
 
 const { Text } = Typography;
@@ -37,10 +39,25 @@ interface BookFormValues {
 
 export default function Books() {
   const { books, loading, error, reload } = useBooks(true);
+  // 全局账套上下文：归档/启用后要同步刷新，顶栏切换器才能即时隐藏/显示
+  const { reload: reloadContext } = useBook();
   const { isReadOnly } = useRole();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [filter, setFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [form] = Form.useForm<BookFormValues>();
+
+  const visibleBooks = useMemo(
+    () =>
+      books.filter((b) =>
+        filter === 'all'
+          ? true
+          : filter === 'archived'
+            ? b.isActive === false
+            : b.isActive !== false,
+      ),
+    [books, filter],
+  );
 
   const create = async () => {
     let values: BookFormValues;
@@ -74,6 +91,7 @@ export default function Books() {
       await api.post(`/books/${id}/archive`);
       message.success('账套已归档，历史数据保留可查');
       reload();
+      reloadContext();
     } catch (e) {
       message.error(errorMessage(e, '归档失败'));
     }
@@ -84,6 +102,7 @@ export default function Books() {
       await api.post(`/books/${id}/restore`);
       message.success('账套已重新启用');
       reload();
+      reloadContext();
     } catch (e) {
       message.error(errorMessage(e, '启用失败'));
     }
@@ -130,14 +149,16 @@ export default function Books() {
         width: 110,
         render: (_, r) =>
           r.isActive === false ? (
-            <Button
-              size="small"
-              type="primary"
-              disabled={isReadOnly}
-              onClick={() => void restore(r.id)}
+            <Popconfirm
+              title="确认重新启用该账套？启用后可继续录入凭证。"
+              okText="启用"
+              cancelText="取消"
+              onConfirm={() => void restore(r.id)}
             >
-              重新启用
-            </Button>
+              <Button size="small" disabled={isReadOnly}>
+                重新启用
+              </Button>
+            </Popconfirm>
           ) : (
             <Popconfirm
               title="归档后该账套不能再录入凭证（历史数据保留，可继续查询），确认归档？"
@@ -196,9 +217,19 @@ export default function Books() {
       )}
 
       <Card size="small">
+        <Segmented
+          value={filter}
+          onChange={(v) => setFilter(v as 'active' | 'archived' | 'all')}
+          options={[
+            { label: '启用中', value: 'active' },
+            { label: '已归档', value: 'archived' },
+            { label: '全部', value: 'all' },
+          ]}
+          style={{ marginBottom: 12 }}
+        />
         <Table
           rowKey="id"
-          dataSource={books}
+          dataSource={visibleBooks}
           columns={columns}
           loading={loading}
           size="middle"
