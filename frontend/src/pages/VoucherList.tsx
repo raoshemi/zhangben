@@ -233,6 +233,12 @@ export default function VoucherList() {
               </Button>
             </Popconfirm>
           )}
+          <Button
+            size="small"
+            onClick={() => window.open(`/print/voucher/${r.id}`, '_blank')}
+          >
+            打印
+          </Button>
         </Space>
       ),
     },

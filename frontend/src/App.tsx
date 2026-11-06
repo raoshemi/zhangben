@@ -12,6 +12,8 @@ import Ledgers from './pages/Ledgers';
 import Closing from './pages/Closing';
 import Reports from './pages/Reports';
 import Assets from './pages/Assets';
+import VoucherPrint from './pages/VoucherPrint';
+import ReportPrint from './pages/ReportPrint';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const token = localStorage.getItem('token');
@@ -23,6 +25,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/print/voucher/:id" element={<VoucherPrint />} />
+      <Route path="/print/report" element={<ReportPrint />} />
       <Route
         path="/"
         element={

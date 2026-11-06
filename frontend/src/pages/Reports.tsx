@@ -10,6 +10,7 @@ import {
   Table,
   Tabs,
   Typography,
+  message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
@@ -281,6 +282,20 @@ export default function Reports() {
           />
           <Button type="primary" loading={loading} onClick={query}>
             查询
+          </Button>
+          <Button
+            onClick={() => {
+              if (!bookId || !period) {
+                message.error('请先选择账套与期间');
+                return;
+              }
+              window.open(
+                `/print/report?bookId=${bookId}&period=${period.format('YYYY-MM')}&type=${activeTab}`,
+                '_blank',
+              );
+            }}
+          >
+            打印
           </Button>
         </Space>
       </Card>

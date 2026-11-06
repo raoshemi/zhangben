@@ -1,0 +1,35 @@
+/* A4 打印样式：只保留内容表格，隐藏导航/按钮/分页 */
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  .ant-layout-sider,
+  .ant-layout-header,
+  .ant-btn,
+  .ant-tabs-nav,
+  .ant-pagination,
+  .no-print {
+    display: none !important;
+  }
+  .ant-layout-content {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .ant-card {
+    box-shadow: none !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+  .ant-table {
+    font-size: 10pt;
+  }
+  .ant-table,
+  .ant-table th,
+  .ant-table td {
+    border: 1px solid #000 !important;
+  }
+  body {
+    margin: 0;
+  }
+}

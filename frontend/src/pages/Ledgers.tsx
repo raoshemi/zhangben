@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Button,
   Card,
   DatePicker,
   Empty,
@@ -254,6 +255,7 @@ export default function Ledgers() {
           onChange={(d: Dayjs | null) => d && setPeriod(d.format('YYYY-MM'))}
           allowClear={false}
         />
+        <Button onClick={() => window.print()}>打印</Button>
       </Space>
 
       <Tabs
