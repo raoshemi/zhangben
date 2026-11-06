@@ -8,10 +8,12 @@ import { LedgersModule } from './ledgers/ledgers.module';
 import { ClosingModule } from './closing/closing.module';
 import { ReportsModule } from './reports/reports.module';
 import { AssetsModule } from './assets/assets.module';
+import { BootstrapModule } from './bootstrap/bootstrap.module';
 
 @Module({
   imports: [
     PrismaModule,
+    BootstrapModule,
     AuthModule,
     AccountsModule,
     CashFlowModule,
