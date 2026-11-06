@@ -43,12 +43,12 @@ services:
       - "3000:80"
     restart: unless-stopped
 
-  # 一次性迁移任务：用 build 阶段（含 prisma CLI）跑 migrate deploy。
-  # 仅部署脚本显式调用，平时不会启动：docker compose --profile tools run --rm migrate
+  # 一次性迁移任务：用后端 Dockerfile 的 migrate 阶段（含 prisma CLI + migrations）。
+  # 仅部署脚本显式调用：docker compose --profile tools run --rm migrate
   migrate:
     build:
       context: ./backend
-      target: build
+      target: migrate
     container_name: zhangben-migrate
     command: ["npx", "prisma", "migrate", "deploy"]
     environment:

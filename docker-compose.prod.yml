@@ -1,0 +1,70 @@
+name: zhangben
+
+# 生产编排：全部用 GHCR 镜像，无需在 NAS 上 git clone / 构建。
+# 用法：
+#   1) 首次：docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
+#             docker compose -f docker-compose.prod.yml up -d
+#   2) 后续升级：./deploy-prod.sh
+#
+# 可选 .env（同目录）：
+#   JWT_SECRET=换成随机长串
+#   POSTGRES_PASSWORD=换成强密码
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: zhangben-db
+    environment:
+      POSTGRES_DB: zhangben
+      POSTGRES_USER: zhangben
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zhangben}
+      TZ: Asia/Shanghai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U zhangben -d zhangben']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/raoshemi/zhangben/backend:latest
+    container_name: zhangben-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://zhangben:${POSTGRES_PASSWORD:-zhangben}@db:5432/zhangben?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      PORT: 8080
+      TZ: Asia/Shanghai
+    ports:
+      - '8081:8080'
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/raoshemi/zhangben/frontend:latest
+    container_name: zhangben-frontend
+    depends_on:
+      - backend
+    ports:
+      - '3000:80'
+    restart: unless-stopped
+
+  # 一次性迁移：docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
+  migrate:
+    image: ghcr.io/raoshemi/zhangben/migrate:latest
+    container_name: zhangben-migrate
+    environment:
+      DATABASE_URL: postgresql://zhangben:${POSTGRES_PASSWORD:-zhangben}@db:5432/zhangben?schema=public
+      TZ: Asia/Shanghai
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ['tools']
+
+volumes:
+  pgdata:
