@@ -430,13 +430,7 @@ export default function Reports() {
         <Space wrap size={12}>
           <Space size={4}>
             <Typography.Text type="secondary">账套</Typography.Text>
-            <BookSelect
-              books={books}
-              value={bookId}
-              onChange={setBookId}
-              loading={booksLoading}
-              style={{ width: 300 }}
-            />
+            
           </Space>
           <Space size={4}>
             <Typography.Text type="secondary">期间</Typography.Text>
@@ -479,6 +473,24 @@ export default function Reports() {
               打印
             </Button>
           </Tooltip>
+          <Button
+            disabled={!bookId || !period}
+            onClick={() => {
+              if (!bookId || !period) {
+                message.error('请先选择账套与期间');
+                return;
+              }
+              const base = `/print/report?bookId=${bookId}&period=${period.format(
+                'YYYY-MM',
+              )}&type=`;
+              // 一次打开三张报表的打印页（资产负债表 / 利润表 / 现金流量表）
+              ['balance', 'income', 'cashflow'].forEach((t) =>
+                window.open(base + t, '_blank'),
+              );
+            }}
+          >
+            批量打印
+          </Button>
         </Space>
       </Card>
 

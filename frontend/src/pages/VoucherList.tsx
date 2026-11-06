@@ -53,7 +53,8 @@ function fmtDate(s?: string | null): string {
 }
 
 export default function VoucherList() {
-  const { books, bookId, setBookId, loading: booksLoading } = useBook();
+  const { books, bookId, setBookId, book, loading: booksLoading } = useBook();
+  const requireApproval = book?.requireApproval ?? false;
   const { canApprove, canPost, canVoid } = useRole();
 
   const [data, setData] = useState<Voucher[]>([]);
@@ -67,6 +68,7 @@ export default function VoucherList() {
   const [keyword, setKeyword] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const fetchList = useCallback(async () => {
     if (bookId == null) return;
@@ -188,16 +190,31 @@ export default function VoucherList() {
       width: 250,
       render: (_, r) => (
         <Space size={4} wrap>
-          {r.status === 'draft' && (
-            <Tooltip title="提交后进入审核环节，草稿将不可直接修改">
-              <Button
-                size="small"
-                onClick={() => void run(() => api.post(`/vouchers/${r.id}/submit`), '已提交')}
-              >
-                提交
-              </Button>
-            </Tooltip>
-          )}
+          {r.status === 'draft' &&
+            (requireApproval ? (
+              <Tooltip title="提交后进入审核环节，草稿将不可直接修改">
+                <Button
+                  size="small"
+                  onClick={() =>
+                    void run(() => api.post(`/vouchers/${r.id}/submit`), '已提交')
+                  }
+                >
+                  提交
+                </Button>
+              </Tooltip>
+            ) : (
+              <Tooltip title="单人模式：草稿可直接记账入账">
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() =>
+                    void run(() => api.post(`/vouchers/${r.id}/post`), '已记账')
+                  }
+                >
+                  记账
+                </Button>
+              </Tooltip>
+            ))}
           {r.status === 'submitted' && canApprove && (
             <Tooltip title="审核人不能与制单人相同">
               <Button
@@ -263,25 +280,26 @@ export default function VoucherList() {
         title="凭证管理"
         description="按账套与期间检索凭证；审核/记账按钮依据当前角色显示，避免无效点击。"
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawerOpen(true)}>
-            新增凭证
-          </Button>
+          <Space wrap>
+            <Button
+              disabled={!selectedIds.length}
+              onClick={() =>
+                window.open(`/print/vouchers?ids=${selectedIds.join(',')}`, '_blank')
+              }
+            >
+              批量打印{selectedIds.length ? `（${selectedIds.length}）` : ''}
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawerOpen(true)}>
+              新增凭证
+            </Button>
+          </Space>
         }
       />
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
           <Space size={4}>
-            <BookSelect
-              books={books}
-              value={bookId}
-              onChange={(v) => {
-                setBookId(v ?? 1);
-                setPage(1);
-              }}
-              loading={booksLoading}
-              style={{ width: 220 }}
-            />
+            
           </Space>
           <DatePicker
             picker="month"
@@ -329,8 +347,12 @@ export default function VoucherList() {
       </Card>
 
       <Table
-        rowKey="id"
         size="small"
+        rowKey="id"
+        rowSelection={{
+          selectedRowKeys: selectedIds,
+          onChange: (keys) => setSelectedIds(keys as number[]),
+        }}
         loading={loading}
         columns={columns}
         dataSource={data}

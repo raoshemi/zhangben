@@ -173,13 +173,7 @@ export default function Auxiliary() {
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
-          <BookSelect
-            books={books}
-            value={bookId}
-            onChange={setBookId}
-            loading={booksLoading}
-            style={{ width: 240 }}
-          />
+          
           <Select
             style={{ width: 150 }}
             placeholder="类型（全部）"

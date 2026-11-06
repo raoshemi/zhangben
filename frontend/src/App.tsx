@@ -51,6 +51,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/print/voucher/:id" element={<VoucherPrint />} />
+      <Route path="/print/vouchers" element={<VoucherPrint />} />
       <Route path="/print/report" element={<ReportPrint />} />
       <Route
         path="/"

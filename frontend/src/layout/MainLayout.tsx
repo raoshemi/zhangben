@@ -202,7 +202,17 @@ export default function MainLayout() {
             <Select
               size="small"
               value={bookId}
-              onChange={setBookId}
+              onChange={(v) => {
+                if (v === bookId) return;
+                const target = books.find((b) => b.id === v);
+                Modal.confirm({
+                  title: '切换账套',
+                  content: `确定切换到「${target?.name ?? v}」吗？切换后各页面数据都会跟随该账套刷新。`,
+                  okText: '切换',
+                  cancelText: '取消',
+                  onOk: () => setBookId(v),
+                });
+              }}
               options={books.map((b) => ({ value: b.id, label: b.name }))}
               style={{ minWidth: 170 }}
               placeholder="选择账套"

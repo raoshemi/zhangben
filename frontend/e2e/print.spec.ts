@@ -8,7 +8,7 @@ test.describe('A4 打印 E2E', () => {
 
     const [printPage] = await Promise.all([
       context.waitForEvent('page'),
-      page.getByRole('button', { name: /打\s*印/ }).first().click(),
+      page.getByRole('button', { name: /^打\s*印$/ }).first().click(),
     ]);
     await printPage.waitForLoadState('networkidle');
 

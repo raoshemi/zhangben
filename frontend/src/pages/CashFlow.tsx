@@ -153,13 +153,7 @@ export default function CashFlow() {
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
-          <BookSelect
-            books={books}
-            value={bookId}
-            onChange={setBookId}
-            loading={booksLoading}
-            style={{ width: 240 }}
-          />
+          
           <Select
             allowClear
             placeholder="活动类别（全部）"

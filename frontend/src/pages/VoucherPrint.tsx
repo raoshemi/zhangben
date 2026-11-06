@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { amountInChinese, chineseDate, fmtMoney, toCents } from '../lib/format';
 
@@ -28,30 +28,88 @@ interface Book {
 
 export default function VoucherPrint() {
   const { id } = useParams();
-  const [voucher, setVoucher] = useState<Voucher | null>(null);
+  const [sp] = useSearchParams();
+  const idsParam = sp.get('ids');
+  const ids = useMemo(
+    () =>
+      (idsParam ? idsParam.split(',') : id ? [id] : [])
+        .map((s) => parseInt(s, 10))
+        .filter((n) => Number.isFinite(n) && n > 0),
+    [idsParam, id],
+  );
+
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [accounts, setAccounts] = useState<Record<number, string>>({});
   const [bookName, setBookName] = useState('');
 
   useEffect(() => {
-    if (!id) return;
-    api.get(`/vouchers/${id}`).then(async ({ data }) => {
-      setVoucher(data);
-      const [acctRes, bookRes] = await Promise.all([
-        api.get('/accounts', { params: { bookId: data.bookId } }),
-        api.get('/ledgers/books').catch(() => ({ data: { rows: [] } })),
-      ]);
-      const map: Record<number, string> = {};
-      for (const a of acctRes.data) map[a.id] = `${a.code} ${a.name}`;
-      setAccounts(map);
-      const b = (bookRes.data.rows as Book[] | undefined)?.find(
-        (x) => x.id === data.bookId,
+    if (!ids.length) return;
+    (async () => {
+      const list = await Promise.all(
+        ids.map((vid) =>
+          api.get(`/vouchers/${vid}`).then((r) => r.data as Voucher),
+        ),
       );
-      setBookName(b?.name ?? '');
-    });
-  }, [id]);
+      setVouchers(list);
+      const bookId = list[0]?.bookId;
+      if (bookId) {
+        const [acctRes, bookRes] = await Promise.all([
+          api.get('/accounts', { params: { bookId } }),
+          api.get('/ledgers/books').catch(() => ({ data: { rows: [] } })),
+        ]);
+        const map: Record<number, string> = {};
+        for (const a of acctRes.data) map[a.id] = `${a.code} ${a.name}`;
+        setAccounts(map);
+        const b = (bookRes.data.rows as Book[] | undefined)?.find(
+          (x) => x.id === bookId,
+        );
+        setBookName(b?.name ?? '');
+      }
+    })();
+  }, [ids]);
 
-  if (!voucher) return <div style={{ padding: 20 }}>加载中...</div>;
+  if (!vouchers.length) return <div style={{ padding: 20 }}>加载中...</div>;
 
+  return (
+    <>
+      <div className="no-print" style={{ textAlign: 'center', padding: '10px 0' }}>
+        <button
+          onClick={() => window.print()}
+          style={{ padding: '6px 24px', cursor: 'pointer' }}
+        >
+          打印（共 {vouchers.length} 张）
+        </button>
+        <span style={{ marginLeft: 12, color: '#888', fontSize: 12 }}>
+          （A4 纵向，每张凭证一页）
+        </span>
+      </div>
+      {vouchers.map((v, idx) => (
+        <VoucherSheet
+          key={v.id}
+          voucher={v}
+          accounts={accounts}
+          bookName={bookName}
+          pageNo={idx + 1}
+          total={vouchers.length}
+        />
+      ))}
+    </>
+  );
+}
+
+function VoucherSheet({
+  voucher,
+  accounts,
+  bookName,
+  pageNo,
+  total,
+}: {
+  voucher: Voucher;
+  accounts: Record<number, string>;
+  bookName: string;
+  pageNo: number;
+  total: number;
+}) {
   const rowsCount = Math.max(voucher.entries.length, 10);
   const debitCents = voucher.entries
     .filter((e) => e.direction === 'debit')
@@ -63,19 +121,7 @@ export default function VoucherPrint() {
   const no = String(voucher.voucherNo).padStart(4, '0');
 
   return (
-    <div className="sheet">
-      <div className="no-print" style={{ textAlign: 'center', padding: '10px 0' }}>
-        <button
-          onClick={() => window.print()}
-          style={{ padding: '6px 24px', cursor: 'pointer' }}
-        >
-          打印
-        </button>
-        <span style={{ marginLeft: 12, color: '#888', fontSize: 12 }}>
-          （A4 纵向）
-        </span>
-      </div>
-
+    <div className="sheet" style={{ breakAfter: 'page', pageBreakAfter: 'always' }}>
       <div className="doc-title">记 账 凭 证</div>
       <div className="meta">
         <span>编制单位：{bookName}</span>
@@ -84,7 +130,6 @@ export default function VoucherPrint() {
           {voucher.voucherType}字第 {no} 号
         </span>
       </div>
-
       <table>
         <thead>
           <tr>
@@ -121,7 +166,6 @@ export default function VoucherPrint() {
           </tr>
         </tbody>
       </table>
-
       <div className="attach">附件 {voucher.attachmentCount} 张</div>
       <div className="sign-row">
         <span>会计主管：____________</span>
@@ -130,7 +174,9 @@ export default function VoucherPrint() {
         <span>制单：____________</span>
         <span>出纳：____________</span>
       </div>
-      <div className="page-footer">第 1 页 共 1 页</div>
+      <div className="page-footer">
+        第 {pageNo} 页 共 {total} 页
+      </div>
     </div>
   );
 }

@@ -245,7 +245,17 @@ export class VouchersService {
       });
       if (!voucher) throw new NotFoundException('凭证不存在');
       if (voucher.status !== 'approved') {
-        throw new BadRequestException('仅已审核状态可记账');
+        // 单人模式（requireApproval=false）：草稿/已提交可直接记账，跳过审核
+        const book = await tx.accountBook.findUnique({
+          where: { id: voucher.bookId },
+        });
+        const directOk =
+          book != null &&
+          !book.requireApproval &&
+          (voucher.status === 'draft' || voucher.status === 'submitted');
+        if (!directOk) {
+          throw new BadRequestException('仅已审核状态可记账');
+        }
       }
       await this.assertPeriodOpen(tx, voucher.bookId, voucher.period);
 

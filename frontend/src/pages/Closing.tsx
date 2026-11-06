@@ -172,13 +172,7 @@ export default function Closing() {
         description="按月推进：损益结转 → 结账（校验已结转 + 试算平衡）→ 锁定期间，反结账仅在后续无已结账期间时可用"
         extra={
           <Space>
-            <BookSelect
-              books={books}
-              value={bookId}
-              onChange={setBookId}
-              loading={booksLoading}
-              style={{ width: 240 }}
-            />
+            
           </Space>
         }
       />

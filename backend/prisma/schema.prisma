@@ -51,6 +51,8 @@ model AccountBook {
   startDate          DateTime  @map("start_date") @db.Date
   endDate            DateTime  @map("end_date") @db.Date
   isActive           Boolean   @default(true) @map("is_active")
+  // false=单人模式：草稿可直接记账（跳过提交/审核）；true=多人模式：须审核后记账
+  requireApproval    Boolean   @default(false) @map("require_approval")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   accounts        Account[]

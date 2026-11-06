@@ -10,6 +10,8 @@ export interface Book {
   startDate?: string;
   endDate?: string;
   isActive?: boolean;
+  /** false=单人模式（草稿可直接记账）；true=多人模式（须审核） */
+  requireApproval?: boolean;
 }
 
 export interface BooksState {

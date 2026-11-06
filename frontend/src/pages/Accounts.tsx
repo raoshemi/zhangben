@@ -141,13 +141,7 @@ export default function Accounts() {
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
-          <BookSelect
-            books={books}
-            value={bookId}
-            onChange={setBookId}
-            loading={booksLoading}
-            style={{ width: 260 }}
-          />
+          
           <Input
             allowClear
             prefix={<SearchOutlined />}

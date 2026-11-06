@@ -248,13 +248,7 @@ export default function Ledgers() {
         <Space wrap size={12}>
           <Space size={4}>
             <Typography.Text type="secondary">账套</Typography.Text>
-            <BookSelect
-              books={books}
-              value={bookId}
-              onChange={setBookId}
-              loading={booksLoading}
-              style={{ width: 260 }}
-            />
+            
           </Space>
           <Space size={4}>
             <Typography.Text type="secondary">期间</Typography.Text>
