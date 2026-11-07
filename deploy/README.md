@@ -17,11 +17,11 @@
 
 ### 1. 建目录
 
-在 TrueNAS → Datasets 建应用目录（下面以 `/mnt/tank/apps/zhangben` 为例）：
+在 TrueNAS → Datasets 建应用根目录 `/mnt/main_pool/app_data/jizhang`，下面建两个子目录：
 
 ```bash
-/mnt/tank/apps/zhangben/pgdata    # 数据库数据
-/mnt/tank/apps/zhangben/certs     # 可选，SSL 证书
+/mnt/main_pool/app_data/jizhang/pgdata    # 数据库数据（必须持久化）
+/mnt/main_pool/app_data/jizhang/certs     # 可选，SSL 证书
 ```
 
 ### 2. 创建自定义应用
@@ -80,7 +80,7 @@ frps / 公网 Nginx 负责 HTTPS 和证书。**证书不用进 NAS**。
 
 ### 模式 B：SSL 在本机终结（NAS 自己提供 https）
 
-1. 把证书放 `/mnt/tank/apps/zhangben/certs/`：`fullchain.pem` + `privkey.pem`
+1. 把证书放 `/mnt/main_pool/app_data/jizhang/certs/`：`fullchain.pem` + `privkey.pem`
 2. 取消 compose 里 `gateway` 服务的注释（Caddy，暴露 8443）
 3. frpc 隧道改指 `local_port = 8443`，类型可改成 `https`
 
@@ -108,8 +108,11 @@ ghcr.io/raoshemi/zhangben/frontend:<版本>
 
 ```bash
 # 数据库逻辑备份（推荐，可跨版本恢复）
+# 建议放到独立的数据集，避免和 pgdata 同盘
+mkdir -p /mnt/main_pool/app_data/jizhang/backup
 docker exec -t $(docker ps -qf name=zhangben-db) \
-  pg_dump -U zhangben zhangben | gzip > /mnt/tank/backup/zhangben-$(date +%F).sql.gz
+  pg_dump -U zhangben zhangben | gzip \
+  > /mnt/main_pool/app_data/jizhang/backup/zhangben-$(date +%F).sql.gz
 ```
 
 或直接用 TrueNAS 的「定期快照」对 `pgdata` 所在数据集做快照。
@@ -122,3 +125,5 @@ docker exec -t $(docker ps -qf name=zhangben-db) \
 | 页面能开但接口 401 | 换过 `JWT_SECRET` | 重新登录（旧 token 自动失效并跳登录页）|
 | 登录密码不知道 | 用了自动生成密码 | 看首次启动日志；或清空库重建 |
 | 数据库连不上 | `DATABASE_URL` 密码与 `POSTGRES_PASSWORD` 不一致 | 改成一致 |
+| 数据库报 `permission denied` / `could not change permissions` | `pgdata` 目录属主不是容器内的 postgres 用户 | 在 NAS 上执行 `chown -R 999:999 /mnt/main_pool/app_data/jizhang/pgdata` 后重启应用 |
+| 端口 3000 被占用 | NAS 上已有服务占用 | 改 `ports` 左侧端口，如 `'3001:80'` |
