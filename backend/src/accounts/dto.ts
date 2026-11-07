@@ -113,6 +113,31 @@ export class InitialBalanceItemDto {
   initialCredit?: string;
 }
 
+/** 期初辅助核算明细单条（往来科目按客户/供应商等分解） */
+export class InitialAuxItemDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  accountId: number;
+
+  @IsString()
+  @IsNotEmpty()
+  auxType: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  auxItemId: number;
+
+  @IsOptional()
+  @IsString()
+  debit?: string;
+
+  @IsOptional()
+  @IsString()
+  credit?: string;
+}
+
 export class SaveInitialBalancesDto {
   @Type(() => Number)
   @IsInt()
@@ -123,6 +148,12 @@ export class SaveInitialBalancesDto {
   @ValidateNested({ each: true })
   @Type(() => InitialBalanceItemDto)
   items: InitialBalanceItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InitialAuxItemDto)
+  auxItems?: InitialAuxItemDto[];
 }
 
 export class CreateAuxiliaryDto {

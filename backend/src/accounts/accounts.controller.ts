@@ -79,7 +79,17 @@ export class AccountsController {
   @Roles('admin', 'bookkeeper')
   @Put('accounts/initial-balances')
   saveInitialBalances(@Body() dto: SaveInitialBalancesDto) {
-    return this.service.saveInitialBalances(dto.bookId, dto.items);
+    return this.service.saveInitialBalances(
+      dto.bookId,
+      dto.items,
+      dto.auxItems ?? [],
+    );
+  }
+
+  /** 期初辅助核算明细（供页面对往来科目展开编辑） */
+  @Get('accounts/initial-balances/aux')
+  listInitialAux(@Query('bookId', ParseIntPipe) bookId: number) {
+    return this.service.listInitialAux(bookId);
   }
 
   @Roles('admin')

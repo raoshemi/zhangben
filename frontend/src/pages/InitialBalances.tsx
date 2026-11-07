@@ -21,6 +21,7 @@ import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
 import {
   ACCOUNT_CATEGORY_LABEL,
+  AUX_TYPE_LABEL,
   centsToMoney,
   errorMessage,
   fmtMoney,
@@ -40,23 +41,34 @@ interface Account {
   initialCredit: string;
   auxFlags?: string[] | null;
 }
+interface AuxItem {
+  id: number;
+  auxType: string;
+  code: string;
+  name: string;
+}
+interface AuxRow {
+  accountId: number;
+  auxType: string;
+  auxItemId: number;
+  debit: string;
+  credit: string;
+}
+type AuxAmounts = Record<number, Record<number, { debit: string; credit: string }>>;
 
 const CATEGORY_ORDER = ['asset', 'liability', 'common', 'equity', 'cost', 'pnl'] as const;
 
-/**
- * 期初余额录入（期初建账）。
- *
- * 交互按金蝶/用友的成熟做法重做：
- * - 按会计要素分组折叠，不会一进来就是 100+ 行；
- * - 支持按编码/名称搜索、"只看已填"；
- * - 底部常驻借贷合计与差额，三态提示（未录入/平衡/不平衡）；
- * - 纯文本输入避免 InputNumber 吃掉方向键，回车跳到下一格。
- */
+/** 余额型辅助（现金流量不是余额维度，不参与期初辅助） */
+const balanceAuxFlags = (a: Account) =>
+  (a.auxFlags ?? []).filter((f) => f !== 'cashflow');
+
 export default function InitialBalances() {
   const { bookId, book } = useBook();
   const { isReadOnly } = useRole();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [auxItems, setAuxItems] = useState<AuxItem[]>([]);
   const [amounts, setAmounts] = useState<Record<number, string>>({});
+  const [auxAmounts, setAuxAmounts] = useState<AuxAmounts>({});
   const [search, setSearch] = useState('');
   const [onlyFilled, setOnlyFilled] = useState(false);
   const [expanded, setExpanded] = useState<string[]>(['asset', 'liability', 'equity']);
@@ -69,19 +81,38 @@ export default function InitialBalances() {
     if (!bookId) return;
     setLoading(true);
     try {
-      const [acctRes, posted] = await Promise.all([
+      const [acctRes, auxRes, savedAux, posted] = await Promise.all([
         api.get('/accounts', { params: { bookId } }),
+        api.get('/auxiliary', { params: { bookId } }),
+        api.get('/accounts/initial-balances/aux', { params: { bookId } }),
         api.get('/vouchers', { params: { bookId, status: 'posted', pageSize: 1 } }),
       ]);
       const list = (acctRes.data as Account[]).filter((a) => a.isLeaf);
       setAccounts(list);
+      setAuxItems((auxRes.data as AuxItem[]) ?? []);
+
       const map: Record<number, string> = {};
       for (const a of list) {
+        if (balanceAuxFlags(a).length > 0) continue; // 辅助科目由明细汇总
         const raw = a.balanceSide === 'credit' ? a.initialCredit : a.initialDebit;
         const cents = toCents(raw);
         map[a.id] = cents === 0 ? '' : centsToMoney(cents);
       }
       setAmounts(map);
+
+      const auxMap: AuxAmounts = {};
+      for (const r of (savedAux.data as AuxRow[]) ?? []) {
+        const d = toCents(r.debit);
+        const c = toCents(r.credit);
+        if (d === 0 && c === 0) continue;
+        const perAccount = auxMap[r.accountId] ?? {};
+        perAccount[r.auxItemId] = {
+          debit: d ? centsToMoney(d) : '',
+          credit: c ? centsToMoney(c) : '',
+        };
+        auxMap[r.accountId] = perAccount;
+      }
+      setAuxAmounts(auxMap);
       setLocked(Number(posted.data?.total ?? 0) > 0);
       setError(undefined);
     } catch (e) {
@@ -96,19 +127,46 @@ export default function InitialBalances() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
-  /** 合计：amounts 以「元」字符串保存，这里只 toCents 一次（修掉之前重复换算导致 100 倍的问题） */
+  const auxSumOf = (accountId: number) => {
+    const per = auxAmounts[accountId] ?? {};
+    let debit = 0;
+    let credit = 0;
+    for (const v of Object.values(per)) {
+      debit += toCents(v.debit);
+      credit += toCents(v.credit);
+    }
+    return { debit, credit };
+  };
+
+  const isAuxAccount = (a: Account) => balanceAuxFlags(a).length > 0;
+
+  /** 科目期初（分）：辅助科目取明细汇总，普通科目取输入值 */
+  const amountOf = (a: Account) => {
+    if (isAuxAccount(a)) {
+      const s = auxSumOf(a.id);
+      return a.balanceSide === 'credit' ? s.credit : s.debit;
+    }
+    return toCents(amounts[a.id] ?? '');
+  };
+
   const totals = useMemo(() => {
     let debit = 0;
     let credit = 0;
     let filled = 0;
     for (const a of accounts) {
-      const cents = toCents(amounts[a.id] ?? '');
+      const cents = isAuxAccount(a)
+        ? (() => {
+            const s = auxSumOf(a.id);
+            return a.balanceSide === 'credit' ? s.credit : s.debit;
+          })()
+        : toCents(amounts[a.id] ?? '');
       if (cents !== 0) filled += 1;
       if (a.balanceSide === 'credit') credit += cents;
       else debit += cents;
     }
     return { debit, credit, diff: debit - credit, filled };
-  }, [accounts, amounts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, amounts, auxAmounts]);
 
   const balanceState =
     totals.debit === 0 && totals.credit === 0
@@ -120,11 +178,12 @@ export default function InitialBalances() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return accounts.filter((a) => {
-      if (onlyFilled && toCents(amounts[a.id] ?? '') === 0) return false;
+      if (onlyFilled && amountOf(a) === 0) return false;
       if (!q) return true;
       return a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q);
     });
-  }, [accounts, amounts, search, onlyFilled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, amounts, auxAmounts, search, onlyFilled]);
 
   const groups = useMemo(() => {
     const byCat = new Map<string, Account[]>();
@@ -141,14 +200,15 @@ export default function InitialBalances() {
       let credit = 0;
       let filled = 0;
       for (const a of rows) {
-        const cents = toCents(amounts[a.id] ?? '');
+        const cents = amountOf(a);
         if (cents !== 0) filled += 1;
         if (a.balanceSide === 'credit') credit += cents;
         else debit += cents;
       }
       return { cat, label: ACCOUNT_CATEGORY_LABEL[cat] ?? cat, rows, debit, credit, filled };
     });
-  }, [filtered, amounts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, amounts, auxAmounts]);
 
   const save = async () => {
     if (!bookId) return;
@@ -158,18 +218,49 @@ export default function InitialBalances() {
     }
     setSaving(true);
     try {
-      // 始终提交全量明细科目：避免"只提交有余额的行"绕过平衡校验
+      // 科目级：普通科目取输入，辅助科目取明细汇总
       const items = accounts.map((a) => {
-        const cents = toCents(amounts[a.id] ?? '');
-        const money = centsToMoney(cents);
         const isCredit = a.balanceSide === 'credit';
+        const cents = amountOf(a);
+        const money = centsToMoney(cents);
         return {
           accountId: a.id,
           initialDebit: isCredit ? '0.00' : money,
           initialCredit: isCredit ? money : '0.00',
         };
       });
-      await api.put('/accounts/initial-balances', { bookId, items });
+      // 辅助明细：只提交有金额的行
+      const auxPayload: {
+        accountId: number;
+        auxType: string;
+        auxItemId: number;
+        debit: string;
+        credit: string;
+      }[] = [];
+      for (const a of accounts) {
+        if (!isAuxAccount(a)) continue;
+        const per = auxAmounts[a.id] ?? {};
+        const itemById = new Map(auxItems.map((x) => [x.id, x]));
+        for (const [itemIdStr, v] of Object.entries(per)) {
+          const d = toCents(v.debit);
+          const c = toCents(v.credit);
+          if (d === 0 && c === 0) continue;
+          const item = itemById.get(Number(itemIdStr));
+          if (!item) continue;
+          auxPayload.push({
+            accountId: a.id,
+            auxType: item.auxType,
+            auxItemId: item.id,
+            debit: centsToMoney(d),
+            credit: centsToMoney(c),
+          });
+        }
+      }
+      await api.put('/accounts/initial-balances', {
+        bookId,
+        items,
+        auxItems: auxPayload,
+      });
       message.success('期初余额已保存，账簿与报表将使用该期初');
       void load();
     } catch (e) {
@@ -187,6 +278,100 @@ export default function InitialBalances() {
     all[idx + 1]?.focus();
   };
 
+  const amountInput = (
+    value: string,
+    onChange: (v: string) => void,
+    disabled: boolean,
+  ) => (
+    <Input
+      className="ib-amount"
+      value={value}
+      disabled={disabled}
+      placeholder="0.00"
+      inputMode="decimal"
+      style={{ textAlign: 'right' }}
+      onChange={(e) => onChange(sanitizeAmount(e.target.value))}
+      onBlur={() => onChange(normalizeAmount(value))}
+      onKeyDown={onAmountKeyDown}
+    />
+  );
+
+  const renderAuxExpanded = (account: Account) => {
+    const flags = balanceAuxFlags(account);
+    const rows = auxItems.filter((x) => flags.includes(x.auxType));
+    if (rows.length === 0) {
+      return (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={`该账套还没有「${flags.map((f) => AUX_TYPE_LABEL[f] ?? f).join('、')}」辅助核算项，请先到「系统设置 → 辅助核算」新增`}
+        />
+      );
+    }
+    const s = auxSumOf(account.id);
+    const setAux = (itemId: number, field: 'debit' | 'credit', v: string) =>
+      setAuxAmounts((prev) => ({
+        ...prev,
+        [account.id]: {
+          ...(prev[account.id] ?? {}),
+          [itemId]: {
+            debit: prev[account.id]?.[itemId]?.debit ?? '',
+            credit: prev[account.id]?.[itemId]?.credit ?? '',
+            [field]: v,
+          },
+        },
+      }));
+
+    return (
+      <div style={{ padding: '4px 0 4px 32px' }}>
+        <Space style={{ marginBottom: 6 }} wrap>
+          <Typography.Text type="secondary">
+            辅助明细合计：借 {fmtMoney(s.debit / 100)} / 贷 {fmtMoney(s.credit / 100)}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            （科目期初取此合计，不需再单独填科目行）
+          </Typography.Text>
+        </Space>
+        <Table
+          rowKey="id"
+          size="small"
+          pagination={false}
+          dataSource={rows}
+          columns={[
+            {
+              title: '辅助项',
+              key: 'item',
+              render: (_, r) => `${r.code} ${r.name}`,
+            },
+            {
+              title: `借方`,
+              key: 'debit',
+              width: 160,
+              align: 'right',
+              render: (_, r) =>
+                amountInput(
+                  auxAmounts[account.id]?.[r.id]?.debit ?? '',
+                  (v) => setAux(r.id, 'debit', v),
+                  isReadOnly || locked,
+                ),
+            },
+            {
+              title: `贷方`,
+              key: 'credit',
+              width: 160,
+              align: 'right',
+              render: (_, r) =>
+                amountInput(
+                  auxAmounts[account.id]?.[r.id]?.credit ?? '',
+                  (v) => setAux(r.id, 'credit', v),
+                  isReadOnly || locked,
+                ),
+            },
+          ]}
+        />
+      </div>
+    );
+  };
+
   const columns: ColumnsType<Account> = [
     { title: '科目编码', dataIndex: 'code', width: 120 },
     { title: '科目名称', dataIndex: 'name' },
@@ -201,46 +386,31 @@ export default function InitialBalances() {
       key: 'amount',
       width: 180,
       align: 'right',
-      render: (_, r) => (
-        <Input
-          className="ib-amount"
-          value={amounts[r.id] ?? ''}
-          disabled={isReadOnly || locked}
-          placeholder="0.00"
-          inputMode="decimal"
-          style={{ textAlign: 'right' }}
-          onChange={(e) =>
-            setAmounts((prev) => ({ ...prev, [r.id]: sanitizeAmount(e.target.value) }))
-          }
-          onBlur={() =>
-            setAmounts((prev) => ({ ...prev, [r.id]: normalizeAmount(prev[r.id] ?? '') }))
-          }
-          onKeyDown={onAmountKeyDown}
-        />
-      ),
+      render: (_, r) =>
+        isAuxAccount(r) ? (
+          <Typography.Text type="secondary">
+            {fmtMoney(amountOf(r) / 100)}（按明细汇总）
+          </Typography.Text>
+        ) : (
+          amountInput(
+            amounts[r.id] ?? '',
+            (v) => setAmounts((prev) => ({ ...prev, [r.id]: v })),
+            isReadOnly || locked,
+          )
+        ),
     },
     {
       title: '辅助核算',
       key: 'aux',
       width: 150,
       render: (_, r) =>
-        r.auxFlags && r.auxFlags.length ? (
+        balanceAuxFlags(r).length ? (
           <Space size={4} wrap>
-            {r.auxFlags
-              .filter((f) => f !== 'cashflow')
-              .map((f) => (
-                <Tag key={f} color="blue">
-                  {f === 'customer'
-                    ? '客户'
-                    : f === 'supplier'
-                      ? '供应商'
-                      : f === 'department'
-                        ? '部门'
-                        : f === 'employee'
-                          ? '职员'
-                          : '项目'}
-                </Tag>
-              ))}
+            {balanceAuxFlags(r).map((f) => (
+              <Tag key={f} color="blue">
+                {AUX_TYPE_LABEL[f] ?? f}
+              </Tag>
+            ))}
           </Space>
         ) : (
           <Typography.Text type="secondary">—</Typography.Text>
@@ -316,6 +486,9 @@ export default function InitialBalances() {
           <Button size="small" onClick={() => setExpanded([])}>
             折叠全部
           </Button>
+          <Typography.Text type="secondary">
+            往来类科目（应收/应付等）点左侧三角展开，按客户/供应商录明细
+          </Typography.Text>
         </Space>
 
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -353,6 +526,10 @@ export default function InitialBalances() {
                     columns={columns}
                     loading={loading}
                     pagination={false}
+                    expandable={{
+                      rowExpandable: (r) => isAuxAccount(r),
+                      expandedRowRender: (r) => renderAuxExpanded(r),
+                    }}
                   />
                 ),
               }))}
@@ -361,7 +538,6 @@ export default function InitialBalances() {
         </div>
       </Card>
 
-      {/* 常驻合计栏 */}
       <Card size="small">
         <Space
           size={24}
@@ -375,7 +551,15 @@ export default function InitialBalances() {
             <Typography.Text>
               贷方合计 <b>{fmtMoney(totals.credit / 100)}</b>
             </Typography.Text>
-            <Tag color={balanceState === 'balanced' ? 'green' : balanceState === 'unbalanced' ? 'red' : 'default'}>
+            <Tag
+              color={
+                balanceState === 'balanced'
+                  ? 'green'
+                  : balanceState === 'unbalanced'
+                    ? 'red'
+                    : 'default'
+              }
+            >
               {balanceState === 'todo'
                 ? '未录入'
                 : balanceState === 'balanced'

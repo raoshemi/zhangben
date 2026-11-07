@@ -202,4 +202,18 @@ test.describe('回归验证', () => {
     // 明细科目行存在
     expect(await page.locator('tbody tr[data-row-key]').count()).toBeGreaterThan(10);
   });
+
+  test('期初余额：往来科目可展开（辅助核算明细）', async ({ page }) => {
+    await login(page, 'admin', 'admin123');
+    await gotoMenu(page, '期初余额');
+    const arRow = page
+      .locator('tbody tr[data-row-key]')
+      .filter({ hasText: '应收账款' })
+      .first();
+    await arRow.locator('.ant-table-row-expand-icon').click();
+    // 展开后要么显示辅助明细子表，要么提示先去建辅助核算项
+    await expect(
+      page.getByText(/辅助明细合计|还没有「客户」辅助核算项/).first(),
+    ).toBeVisible({ timeout: 8000 });
+  });
 });

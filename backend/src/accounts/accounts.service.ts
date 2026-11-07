@@ -93,6 +93,13 @@ export class AccountsService {
   async saveInitialBalances(
     bookId: number,
     items: { accountId: number; initialDebit?: string; initialCredit?: string }[],
+    auxItems: {
+      accountId: number;
+      auxType: string;
+      auxItemId: number;
+      debit?: string;
+      credit?: string;
+    }[] = [],
   ) {
     await this.getBook(bookId);
 
@@ -120,8 +127,67 @@ export class AccountsService {
       }
     }
 
-    // 关键：借贷平衡必须按【全部明细科目】校验。
-    // 未提交的科目沿用库里的现值，避免"只提交有余额的行"绕过平衡校验。
+    // ---------- 辅助核算期初：校验 + 汇总 ----------
+    const auxDefs = await this.prisma.auxiliaryItem.findMany({
+      where: { bookId },
+    });
+    const auxDefById = new Map(auxDefs.map((a) => [a.id, a]));
+    const auxSumByAccount = new Map<
+      number,
+      { debit: Prisma.Decimal; credit: Prisma.Decimal }
+    >();
+    const auxRows: {
+      accountId: number;
+      auxType: string;
+      auxItemId: number;
+      debit: string;
+      credit: string;
+    }[] = [];
+    const seen = new Set<string>();
+
+    for (const a of auxItems) {
+      const account = byId.get(a.accountId);
+      if (!account || !account.isLeaf) {
+        throw new BadRequestException(`科目 ${a.accountId} 不是本账套的明细科目`);
+      }
+      const flags = this.auxFlagsOf(account);
+      // 现金流量不是余额维度，不允许按期初辅助项录入
+      if (a.auxType === 'cashflow' || !flags.includes(a.auxType)) {
+        throw new BadRequestException(
+          `「${account.code} ${account.name}」未启用「${a.auxType}」辅助核算`,
+        );
+      }
+      const def = auxDefById.get(a.auxItemId);
+      if (!def || def.auxType !== a.auxType) {
+        throw new BadRequestException(
+          `辅助核算项 ${a.auxItemId} 不属于当前账套的「${a.auxType}」`,
+        );
+      }
+      const key = `${a.accountId}|${a.auxType}|${a.auxItemId}`;
+      if (seen.has(key)) {
+        throw new BadRequestException(`辅助明细重复：${def.code} ${def.name}`);
+      }
+      seen.add(key);
+
+      const debit = this.toAmount(a.debit, `辅助项 ${def.name} 期初借方`);
+      const credit = this.toAmount(a.credit, `辅助项 ${def.name} 期初贷方`);
+      const acc = auxSumByAccount.get(a.accountId) ?? {
+        debit: new Prisma.Decimal(0),
+        credit: new Prisma.Decimal(0),
+      };
+      acc.debit = acc.debit.plus(debit);
+      acc.credit = acc.credit.plus(credit);
+      auxSumByAccount.set(a.accountId, acc);
+      auxRows.push({
+        accountId: a.accountId,
+        auxType: a.auxType,
+        auxItemId: a.auxItemId,
+        debit: debit.toFixed(2),
+        credit: credit.toFixed(2),
+      });
+    }
+
+    // ---------- 全量明细科目：科目级期初 + 借贷平衡 ----------
     const submitted = new Map(items.map((i) => [i.accountId, i]));
     let totalDebit = new Prisma.Decimal(0);
     let totalCredit = new Prisma.Decimal(0);
@@ -134,15 +200,33 @@ export class AccountsService {
     for (const account of accounts) {
       if (!account.isLeaf) continue;
       const it = submitted.get(account.id);
-      const debit = it
-        ? this.toAmount(it.initialDebit, `${account.code} 期初借方`)
-        : new Prisma.Decimal(account.initialDebit);
-      const credit = it
-        ? this.toAmount(it.initialCredit, `${account.code} 期初贷方`)
-        : new Prisma.Decimal(account.initialCredit);
+      const auxSum = auxSumByAccount.get(account.id);
+
+      let debit: Prisma.Decimal;
+      let credit: Prisma.Decimal;
+      if (it) {
+        debit = this.toAmount(it.initialDebit, `${account.code} 期初借方`);
+        credit = this.toAmount(it.initialCredit, `${account.code} 期初贷方`);
+        // 有辅助明细的科目：科目级必须等于辅助明细之和（借贷分别相等）
+        if (auxSum && (!debit.equals(auxSum.debit) || !credit.equals(auxSum.credit))) {
+          throw new BadRequestException(
+            `「${account.code} ${account.name}」科目期初(借 ${debit.toFixed(2)} / 贷 ${credit.toFixed(
+              2,
+            )}) 与辅助明细合计(借 ${auxSum.debit.toFixed(2)} / 贷 ${auxSum.credit.toFixed(2)}) 不一致`,
+          );
+        }
+      } else if (auxSum) {
+        // 只传了辅助明细：科目级由辅助明细回写
+        debit = auxSum.debit;
+        credit = auxSum.credit;
+      } else {
+        debit = new Prisma.Decimal(account.initialDebit);
+        credit = new Prisma.Decimal(account.initialCredit);
+      }
+
       totalDebit = totalDebit.plus(debit);
       totalCredit = totalCredit.plus(credit);
-      if (it) {
+      if (it || auxSum) {
         updates.push({
           accountId: account.id,
           initialDebit: debit.toFixed(2),
@@ -157,23 +241,42 @@ export class AccountsService {
       );
     }
 
-    await this.prisma.$transaction(
-      updates.map((u) =>
-        this.prisma.account.update({
+    await this.prisma.$transaction(async (tx) => {
+      for (const u of updates) {
+        await tx.account.update({
           where: { id: u.accountId },
-          data: {
-            initialDebit: u.initialDebit,
-            initialCredit: u.initialCredit,
-          },
-        }),
-      ),
-    );
+          data: { initialDebit: u.initialDebit, initialCredit: u.initialCredit },
+        });
+      }
+      // 辅助明细整体替换
+      await tx.openingBalanceAux.deleteMany({ where: { bookId } });
+      if (auxRows.length > 0) {
+        await tx.openingBalanceAux.createMany({
+          data: auxRows.map((r) => ({ bookId, ...r })),
+        });
+      }
+    });
 
     return {
       ok: true,
       totalDebit: totalDebit.toFixed(2),
       totalCredit: totalCredit.toFixed(2),
+      auxCount: auxRows.length,
     };
+  }
+
+  /** 读取期初辅助明细（供前端展开编辑） */
+  async listInitialAux(bookId: number) {
+    return this.prisma.openingBalanceAux.findMany({
+      where: { bookId },
+      orderBy: [{ accountId: 'asc' }, { auxType: 'asc' }, { auxItemId: 'asc' }],
+    });
+  }
+
+  private auxFlagsOf(account: { auxFlags: Prisma.JsonValue }): string[] {
+    const raw = account.auxFlags;
+    if (Array.isArray(raw)) return raw.map((x) => String(x));
+    return [];
   }
 
   private toAmount(value: string | undefined, label: string): Prisma.Decimal {

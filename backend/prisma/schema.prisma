@@ -63,6 +63,7 @@ model AccountBook {
   periods         Period[]
   assets          Asset[]
   reportTemplates ReportTemplate[]
+  openingAux      OpeningBalanceAux[]
 
   @@map("account_book")
 }
@@ -92,6 +93,7 @@ model Account {
   balances           AccountBalance[]
   depreciationAssets Asset[]            @relation("AssetDepreciationAccount")
   accumAssets        Asset[]            @relation("AssetAccumDepreciationAccount")
+  openingAux         OpeningBalanceAux[]
 
   @@unique([bookId, code])
   @@map("account")
@@ -108,9 +110,29 @@ model AuxiliaryItem {
   isActive Boolean  @default(true) @map("is_active")
 
   entryAuxs VoucherEntryAux[]
+  openingAux OpeningBalanceAux[]
 
   @@unique([bookId, auxType, code])
   @@map("auxiliary_item")
+}
+
+// 期初余额的辅助核算明细：往来类科目（应收/应付/其他应收等）按客户/供应商等
+// 逐个录期初，科目级期初 = 各辅助项之和（借贷分别加总）。
+model OpeningBalanceAux {
+  id        Int      @id @default(autoincrement())
+  bookId    Int      @map("book_id")
+  book      AccountBook   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  accountId Int      @map("account_id")
+  account   Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  auxType   String   @map("aux_type") @db.VarChar(20) // customer|supplier|department|employee|project
+  auxItemId Int      @map("aux_item_id")
+  auxItem   AuxiliaryItem @relation(fields: [auxItemId], references: [id], onDelete: Cascade)
+  debit     Decimal  @default(0) @db.Decimal(18, 2)
+  credit    Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([bookId, accountId, auxType, auxItemId], map: "oba_unique")
+  @@map("opening_balance_aux")
 }
 
 // 现金流量项目
