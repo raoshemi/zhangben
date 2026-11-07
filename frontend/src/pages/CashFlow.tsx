@@ -17,7 +17,6 @@ import {
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import api from '../api/client';
-import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
@@ -148,7 +147,6 @@ export default function CashFlow() {
         }
       />
 
-      <BooksEmptyHint books={books} loading={booksLoading} />
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>

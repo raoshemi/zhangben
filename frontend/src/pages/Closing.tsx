@@ -14,7 +14,6 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../api/client';
-import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
@@ -176,7 +175,6 @@ export default function Closing() {
         }
       />
 
-      <BooksEmptyHint books={books} loading={booksLoading} />
 
       {isReadOnly && (
         <Alert

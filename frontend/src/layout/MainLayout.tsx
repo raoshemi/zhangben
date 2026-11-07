@@ -121,7 +121,7 @@ function buildMenuItems(canManageAssets: boolean): MenuProps['items'] {
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { canManageAssets, role } = useRole();
+  const { canManageAssets, canManageSettings, role } = useRole();
   const username = localStorage.getItem('username') ?? '用户';
   const { books, loading, error, bookId, setBookId, status, reload } = useBook();
   const [switchTarget, setSwitchTarget] = useState<number | null>(null);
@@ -227,9 +227,16 @@ export default function MainLayout() {
                 账套加载失败，重试
               </Button>
             ) : status === 'empty' ? (
-              <Tag color="default" style={{ marginInlineEnd: 0 }}>
-                尚未创建账套
-              </Tag>
+              // 无账套时顶栏给「动作」而不是重复文案：文案由下方引导条承担
+              canManageSettings ? (
+                <Button size="small" type="dashed" onClick={() => navigate('/books')}>
+                  新建账套
+                </Button>
+              ) : (
+                <Tag color="default" style={{ marginInlineEnd: 0 }}>
+                  尚未创建账套
+                </Tag>
+              )
             ) : (
               <BookSelect
                 books={books}

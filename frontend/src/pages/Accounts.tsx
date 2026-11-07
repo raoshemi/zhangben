@@ -3,7 +3,6 @@ import type { Key } from 'react';
 import { Alert, Button, Card, Empty, Input, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { SearchOutlined } from '@ant-design/icons';
-import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useAccounts, type Account } from '../hooks/useAccounts';
 import { useBook } from '../context/BookContext';
@@ -136,7 +135,6 @@ export default function Accounts() {
         }
       />
 
-      <BooksEmptyHint books={books} loading={booksLoading} />
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
@@ -203,7 +201,7 @@ export default function Accounts() {
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
                   books.length === 0
-                    ? '尚未创建账套，创建账套后会自动带出标准科目表'
+                    ? '暂无科目'
                     : keyword || category
                       ? '没有匹配的科目，试试清空筛选条件'
                       : '该账套暂无科目'

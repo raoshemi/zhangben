@@ -234,10 +234,11 @@ test.describe('回归验证', () => {
     ).toHaveCount(0);
     // 2) 有非阻塞引导
     await expect(page.getByText('尚未创建账套').first()).toBeVisible();
-    // 3) 其它页面仍可访问，且显示"请先建账套"而非"没有数据"
+    // 3) 其它页面仍可访问，且"尚未创建账套"只出现一次（全局引导条），不重复
     await gotoMenu(page, '期初余额');
     await expect(page.getByRole('heading', { name: '期初余额' })).toBeVisible();
-    await expect(page.getByText(/还没有账套|请选择要操作的账套/).first()).toBeVisible();
+    expect(await page.getByText('尚未创建账套').count()).toBeLessThanOrEqual(1);
+    await expect(page.locator('main').getByText('暂无明细科目')).toBeVisible();
     // 4) 跳到账套管理后，系统设置自动展开且账套管理高亮
     await gotoMenu(page, '账套管理');
     await expect(

@@ -17,7 +17,6 @@ import type { ColumnsType } from 'antd/es/table';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import api from '../api/client';
 import PageHeader from '../components/PageHeader';
-import { BookRequiredState } from '../components/BooksEmptyHint';
 import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
 import {
@@ -64,7 +63,7 @@ const balanceAuxFlags = (a: Account) =>
   (a.auxFlags ?? []).filter((f) => f !== 'cashflow');
 
 export default function InitialBalances() {
-  const { bookId, book, status } = useBook();
+  const { bookId, book } = useBook();
   const { isReadOnly } = useRole();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [auxItems, setAuxItems] = useState<AuxItem[]>([]);
@@ -419,18 +418,6 @@ export default function InitialBalances() {
     },
   ];
 
-  if (status !== 'ready') {
-    return (
-      <div style={{ padding: 24 }}>
-        <PageHeader
-          title="期初余额"
-          description="录入建账期间各明细科目的期初余额，借贷必须平衡"
-        />
-        <BookRequiredState hint="期初余额按账套隔离，选择账套后即可录入" />
-      </div>
-    );
-  }
-
   return (
     <div
       style={{
@@ -508,7 +495,7 @@ export default function InitialBalances() {
           {groups.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={search ? '没有匹配的科目' : '该账套暂无明细科目'}
+              description={search ? '没有匹配的科目' : '暂无明细科目'}
               style={{ marginTop: 48 }}
             />
           ) : (

@@ -17,7 +17,6 @@ import { PrinterOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
 import AccountSelect from '../components/AccountSelect';
-import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useAccounts } from '../hooks/useAccounts';
 import { useBook } from '../context/BookContext';
@@ -252,7 +251,6 @@ export default function Ledgers() {
         }
       />
 
-      <BooksEmptyHint books={books} loading={booksLoading} />
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>

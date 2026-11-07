@@ -24,7 +24,6 @@ import {
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
-import BooksEmptyHint from '../components/BooksEmptyHint';
 import PageHeader from '../components/PageHeader';
 import { useBook } from '../context/BookContext';
 import { STANDARD_LABEL, errorMessage } from '../lib/format';
@@ -435,7 +434,6 @@ export default function Reports() {
         }
       />
 
-      <BooksEmptyHint books={books} loading={booksLoading} />
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
