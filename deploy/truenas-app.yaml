@@ -1,0 +1,74 @@
+# 周会计记账系统 —— TrueNAS SCALE「自定义应用」Compose 配置
+#
+# ┌─ 安装步骤 ────────────────────────────────────────────────────────────┐
+# │ 1. Datasets 先建目录：                                                │
+# │      /mnt/tank/apps/zhangben/pgdata      （数据库数据，必须持久化）    │
+# │      /mnt/tank/apps/zhangben/certs       （可选，放 SSL 证书）        │
+# │ 2. Apps → Discover Apps → Custom App → 粘贴本文件全部内容              │
+# │ 3. 修改下面 4 处 CHANGE_ME：                                          │
+# │      POSTGRES_PASSWORD / DATABASE_URL 里的同一密码 / JWT_SECRET /     │
+# │      ADMIN_PASSWORD                                                   │
+# │    JWT_SECRET 生成：openssl rand -base64 48（必须 ≥32 字符）           │
+# │ 4. 保存安装。首次启动会自动建表并创建管理员，日志里能看到引导密码       │
+# └───────────────────────────────────────────────────────────────────────┘
+#
+# 升级版本：只改下面两处 image 的版本号（backend / frontend 保持同版本），
+#           TrueNAS 里对应用点「重新部署」即可，数据卷不受影响。
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: zhangben
+      POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD
+      POSTGRES_DB: zhangben
+      TZ: Asia/Shanghai
+    volumes:
+      - /mnt/tank/apps/zhangben/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U zhangben -d zhangben']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    image: ghcr.io/raoshemi/zhangben/backend:1.0.0
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://zhangben:CHANGE_ME_DB_PASSWORD@db:5432/zhangben?schema=public
+      # 必须 ≥32 字符；缺失或过弱后端会拒绝启动（安全要求）
+      JWT_SECRET: CHANGE_ME_JWT_SECRET_32_PLUS_CHARS
+      ADMIN_USERNAME: admin
+      # 不填则自动生成一次性随机密码，只在容器日志出现一次
+      ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
+      TZ: Asia/Shanghai
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: ghcr.io/raoshemi/zhangben/frontend:1.0.0
+    restart: unless-stopped
+    # 自定义应用内部网络互通；3000 是给局域网/反向代理/frpc 用的入口
+    ports:
+      - '3000:80'
+    depends_on:
+      - backend
+
+  # ── 可选：本机 HTTPS 终结（如果你想让 NAS 直接对外提供 https）──────────
+  # 把证书放进 /mnt/tank/apps/zhangben/certs/（fullchain.pem + privkey.pem），
+  # 然后取消下面注释。若 SSL 由公网 frps 或已有反向代理负责，请保持注释。
+  #
+  # gateway:
+  #   image: caddy:2-alpine
+  #   restart: unless-stopped
+  #   ports:
+  #     - '8443:443'
+  #   volumes:
+  #     - /mnt/tank/apps/zhangben/certs:/certs:ro
+  #   command: >
+  #     caddy reverse-proxy --from :443 --to frontend:80
+  #     --tls /certs/fullchain.pem --key /certs/privkey.pem
+  #   depends_on:
+  #     - frontend
