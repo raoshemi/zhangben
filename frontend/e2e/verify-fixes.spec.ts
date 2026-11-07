@@ -194,10 +194,10 @@ test.describe('回归验证', () => {
     await login(page, 'admin', 'admin123');
     await gotoMenu(page, '期初余额');
     await expect(page.getByRole('heading', { name: '期初余额' })).toBeVisible();
-    await expect(page.getByText(/期初借方合计/)).toBeVisible();
-    await expect(page.getByText(/期初贷方合计/)).toBeVisible();
+    await expect(page.getByText(/借方合计/)).toBeVisible();
+    await expect(page.getByText(/贷方合计/)).toBeVisible();
     await expect(
-      page.getByRole('columnheader', { name: '科目编码' }),
+      page.getByRole('columnheader', { name: '科目编码' }).first(),
     ).toBeVisible();
     // 明细科目行存在
     expect(await page.locator('tbody tr[data-row-key]').count()).toBeGreaterThan(10);

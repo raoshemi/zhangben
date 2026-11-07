@@ -108,14 +108,6 @@ export class AccountsService {
     const accounts = await this.prisma.account.findMany({ where: { bookId } });
     const byId = new Map(accounts.map((a) => [a.id, a]));
 
-    let totalDebit = new Prisma.Decimal(0);
-    let totalCredit = new Prisma.Decimal(0);
-    const updates: {
-      accountId: number;
-      initialDebit: string;
-      initialCredit: string;
-    }[] = [];
-
     for (const it of items) {
       const account = byId.get(it.accountId);
       if (!account) {
@@ -126,15 +118,37 @@ export class AccountsService {
           `「${account.code} ${account.name}」不是明细科目，只能录明细科目的期初余额`,
         );
       }
-      const debit = this.toAmount(it.initialDebit, `${account.code} 期初借方`);
-      const credit = this.toAmount(it.initialCredit, `${account.code} 期初贷方`);
+    }
+
+    // 关键：借贷平衡必须按【全部明细科目】校验。
+    // 未提交的科目沿用库里的现值，避免"只提交有余额的行"绕过平衡校验。
+    const submitted = new Map(items.map((i) => [i.accountId, i]));
+    let totalDebit = new Prisma.Decimal(0);
+    let totalCredit = new Prisma.Decimal(0);
+    const updates: {
+      accountId: number;
+      initialDebit: string;
+      initialCredit: string;
+    }[] = [];
+
+    for (const account of accounts) {
+      if (!account.isLeaf) continue;
+      const it = submitted.get(account.id);
+      const debit = it
+        ? this.toAmount(it.initialDebit, `${account.code} 期初借方`)
+        : new Prisma.Decimal(account.initialDebit);
+      const credit = it
+        ? this.toAmount(it.initialCredit, `${account.code} 期初贷方`)
+        : new Prisma.Decimal(account.initialCredit);
       totalDebit = totalDebit.plus(debit);
       totalCredit = totalCredit.plus(credit);
-      updates.push({
-        accountId: it.accountId,
-        initialDebit: debit.toFixed(2),
-        initialCredit: credit.toFixed(2),
-      });
+      if (it) {
+        updates.push({
+          accountId: account.id,
+          initialDebit: debit.toFixed(2),
+          initialCredit: credit.toFixed(2),
+        });
+      }
     }
 
     if (!totalDebit.equals(totalCredit)) {
