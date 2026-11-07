@@ -247,5 +247,8 @@ test.describe('回归验证', () => {
     await expect(
       page.locator('.ant-menu-item-selected').filter({ hasText: '账套管理' }),
     ).toHaveCount(1);
+    // 5) 账套管理页去掉全局引导条（页面自带主按钮），顶栏改为中性灰表达
+    await expect(page.getByText('没有可用账套')).toBeVisible();
+    await expect(page.locator('main').getByText('尚未创建账套')).toHaveCount(0);
   });
 });

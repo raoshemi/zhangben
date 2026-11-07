@@ -1,5 +1,5 @@
 import { Alert, Button, Empty, Space } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import { useRole } from '../hooks/useRole';
 
@@ -16,10 +16,13 @@ export default function BooksEmptyHint(_props?: {
   loading?: boolean;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { status, books, setBookId, reload } = useBook();
   const { isReadOnly } = useRole();
 
   if (status === 'loading' || status === 'ready') return null;
+  // 账套管理页本身就有「新建账套」主按钮，不再叠加引导条
+  if (status === 'empty' && location.pathname === '/books') return null;
 
   if (status === 'error') {
     return (
