@@ -251,4 +251,30 @@ test.describe('回归验证', () => {
     await expect(page.getByText('没有可用账套')).toBeVisible();
     await expect(page.locator('main').getByText('尚未创建账套')).toHaveCount(0);
   });
+
+  test('账簿打印页：独立页面、无 UI 元素、宽表用横向纸张', async ({ page, request }) => {
+    await login(page, 'admin', 'admin123');
+    const token = await page.evaluate(() => localStorage.getItem('token'));
+    const res = await request.get('/api/books', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const books = (await res.json()) as { id: number }[];
+    const bookId = books[0].id;
+
+    await page.goto(
+      `/print/ledger?type=general&bookId=${bookId}&startPeriod=2026-11&endPeriod=2026-11`,
+    );
+    await expect(page.locator('.sheet')).toBeVisible({ timeout: 15000 });
+    // 打印页不含查询页的 UI 控件
+    await expect(page.locator('.ant-select')).toHaveCount(0);
+    await expect(page.locator('.ant-picker')).toHaveCount(0);
+    await expect(page.locator('.ant-card')).toHaveCount(0);
+    // 宽表（总账 8 列）走横向纸张
+    await expect(page.locator('.sheet.landscape')).toHaveCount(1);
+    // 账头账尾齐全：账套/期间/签章/打印日期
+    await expect(page.getByText(/编制单位/)).toBeVisible();
+    await expect(page.getByText(/会计期间/)).toBeVisible();
+    await expect(page.getByText(/会计主管/)).toBeVisible();
+    await expect(page.getByText(/打印日期/)).toBeVisible();
+  });
 });

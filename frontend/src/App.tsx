@@ -16,6 +16,7 @@ import Assets from './pages/Assets';
 import VoucherPrint from './pages/VoucherPrint';
 import ReportPrint from './pages/ReportPrint';
 import InitialBalances from './pages/InitialBalances';
+import LedgerPrint from './pages/LedgerPrint';
 import { useRole } from './hooks/useRole';
 import { BookProvider } from './context/BookContext';
 
@@ -54,6 +55,7 @@ export default function App() {
       <Route path="/print/voucher/:id" element={<VoucherPrint />} />
       <Route path="/print/vouchers" element={<VoucherPrint />} />
       <Route path="/print/report" element={<ReportPrint />} />
+      <Route path="/print/ledger" element={<LedgerPrint />} />
       <Route
         path="/"
         element={

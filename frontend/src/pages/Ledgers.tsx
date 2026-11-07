@@ -244,7 +244,23 @@ export default function Ledgers() {
             <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
               刷新
             </Button>
-            <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+            <Button
+              icon={<PrinterOutlined />}
+              onClick={() => {
+                if (bookId == null) return;
+                const p = new URLSearchParams({
+                  type: tab,
+                  bookId: String(bookId),
+                  startPeriod,
+                  endPeriod,
+                  journalType,
+                });
+                if (detailAccountId != null) {
+                  p.set('accountId', String(detailAccountId));
+                }
+                window.open(`/print/ledger?${p.toString()}`, '_blank');
+              }}
+            >
               打印
             </Button>
           </Space>

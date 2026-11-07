@@ -70,6 +70,14 @@ export default function VoucherPrint() {
 
   if (!vouchers.length) return <div style={{ padding: 20 }}>加载中...</div>;
 
+  const perPage = pickPerPage(
+    Math.max(...vouchers.map((v) => v.entries.length), 1),
+  );
+  const pages: Voucher[][] = [];
+  for (let i = 0; i < vouchers.length; i += perPage) {
+    pages.push(vouchers.slice(i, i + perPage));
+  }
+
   return (
     <>
       <div className="no-print" style={{ textAlign: 'center', padding: '10px 0' }}>
@@ -80,21 +88,42 @@ export default function VoucherPrint() {
           打印（共 {vouchers.length} 张）
         </button>
         <span style={{ marginLeft: 12, color: '#888', fontSize: 12 }}>
-          （A4 纵向，每张凭证一页）
+          （A4 纵向 · 每页 {perPage} 张）
         </span>
       </div>
-      {vouchers.map((v, idx) => (
-        <VoucherSheet
-          key={v.id}
-          voucher={v}
-          accounts={accounts}
-          bookName={bookName}
-          pageNo={idx + 1}
-          total={vouchers.length}
-        />
+      {pages.map((group, pi) => (
+        <div className="print-page" key={pi}>
+          {group.map((v, gi) => (
+            <div key={v.id}>
+              {gi > 0 && (
+                <div className="print-cut">✂ 第 {pi * perPage + gi + 1} 张</div>
+              )}
+              <VoucherSheet
+                voucher={v}
+                accounts={accounts}
+                bookName={bookName}
+                pageNo={pi * perPage + gi + 1}
+                total={vouchers.length}
+              />
+            </div>
+          ))}
+        </div>
       ))}
     </>
   );
+}
+
+/**
+ * 按单张最大行数决定一页放几张：
+ * 紧凑档单张高度 h = 47 + 7r mm，纵向版心 275mm，张间留 6mm 割线。
+ */
+function pickPerPage(maxRows: number): 1 | 2 | 3 {
+  const h = 47 + 7 * maxRows;
+  const PAGE_H = 275;
+  const GAP = 6;
+  if (h * 3 + GAP * 2 <= PAGE_H) return 3;
+  if (h * 2 + GAP <= PAGE_H) return 2;
+  return 1;
 }
 
 function VoucherSheet({
@@ -110,7 +139,7 @@ function VoucherSheet({
   pageNo: number;
   total: number;
 }) {
-  const rowsCount = Math.max(voucher.entries.length, 10);
+  const rowsCount = Math.max(voucher.entries.length, 5);
   const debitCents = voucher.entries
     .filter((e) => e.direction === 'debit')
     .reduce((s, e) => s + toCents(e.amount), 0);
@@ -121,10 +150,7 @@ function VoucherSheet({
   const no = String(voucher.voucherNo).padStart(4, '0');
 
   return (
-    <div
-      className="sheet"
-      style={pageNo > 1 ? { breakBefore: 'page', pageBreakBefore: 'always' } : undefined}
-    >
+    <div className="sheet compact print-slot">
       <div className="doc-title">记 账 凭 证</div>
       <div className="meta">
         <span>编制单位：{bookName}</span>

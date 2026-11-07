@@ -1,7 +1,14 @@
-/* ===== A4 打印基础 ===== */
+/* ===== A4 打印基础（账页/凭证/报表共用） ===== */
+
+/* 纵向文档（凭证、三表）与横向文档（科目余额表/总账/日记账）各一套命名页。
+   命名页不继承默认 @page，必须重复 size 与 margin。 */
 @page {
   size: A4 portrait;
   margin: 0; /* 页边距归零，由 .sheet 自身控制，避免浏览器默认边距叠加 */
+}
+@page sheet-landscape {
+  size: A4 landscape;
+  margin: 0;
 }
 
 .sheet {
@@ -17,10 +24,19 @@
   box-sizing: border-box;
 }
 
+/* 横向纸：宽表（科目余额表/总账/日记账）用横向纸张，避免列被截断 */
+.sheet.landscape {
+  width: 277mm; /* 297 - 左右各 10mm */
+  page: sheet-landscape;
+}
+
 /* 屏幕预览时允许横向滚动，避免窄窗口把凭证右侧切掉 */
 @media screen {
   body {
     overflow-x: auto;
+  }
+  .sheet.landscape {
+    margin-left: 10mm;
   }
 }
 
@@ -55,7 +71,8 @@
   font-size: 9pt;
   height: 8mm;
   vertical-align: middle;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .sheet th {
   font-weight: 400;
@@ -66,7 +83,7 @@
 }
 .sheet .num {
   text-align: right;
-  font-family: Consolas, "Courier New", monospace;
+  font-family: "Times New Roman", "SimSun", serif;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -115,31 +132,109 @@
   background: #fafafa;
 }
 
+/* ===== 账页专用（账簿查询） ===== */
+.sheet.ledger td {
+  height: 7mm;
+  font-size: 9.5pt;
+}
+.sheet.ledger .carry > td {
+  font-weight: 700;
+  font-style: italic;
+}
+.sheet.ledger .ledger-page {
+  text-align: right;
+  font-size: 9pt;
+}
+
+/* ===== 矮表一页多张（凭证 N-up） =====
+   .print-page 是唯一分页单位；.print-slot 是一张单据；.print-cut 是张间割线。 */
+.print-page {
+  width: 190mm;
+  margin: 12mm auto;
+  box-sizing: border-box;
+}
+.print-slot {
+  break-inside: avoid;
+}
+.sheet.print-slot {
+  margin: 0;
+  box-shadow: none;
+}
+/* 紧凑档：一页放 2~3 张时必须减行高，否则 10 行×8mm 一张就占 139mm 放不下第二张 */
+.sheet.compact td {
+  height: 7mm;
+}
+.sheet.compact th {
+  height: 7mm;
+}
+.print-cut {
+  border-top: 0.2mm dashed #666;
+  margin: 3mm 0;
+  font-size: 7pt;
+  color: #666;
+  text-align: right;
+}
+
 @media print {
-  .no-print {
+  .print-page {
+    margin: 0 auto;
+    break-after: page;
+  }
+  .print-page:last-child {
+    break-after: auto;
+  }
+}
+
+/* ===== 打印时彻底剥离屏幕 UI ===== */
+@media print {
+  /* 第 1 层：白名单——打印页只放行 .print-root 子树 */
+  html[data-print] #root > :not(.print-root) {
     display: none !important;
   }
-  .sheet {
-    box-shadow: none;
-  }
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    background: #fff;
-  }
-  thead {
-    display: table-header-group;
-  }
-  tr {
-    page-break-inside: avoid;
-  }
-  /* 主应用（非打印页）隐藏导航/按钮/分页 */
+
+  /* 第 2 层：分层黑名单（兜住页面内 Ctrl+P 的降级路径） */
+  .no-print,
+  .print-toolbar,
   .ant-layout-sider,
   .ant-layout-header,
+  .ant-layout-footer,
   .ant-btn,
+  .ant-select,
+  .ant-picker,
+  .ant-input,
+  .ant-input-number,
+  .ant-input-affix-wrapper,
+  .ant-radio-group,
+  .ant-checkbox-group,
+  .ant-switch,
+  .ant-segmented,
+  .ant-slider,
   .ant-tabs-nav,
-  .ant-pagination {
+  .ant-pagination,
+  .ant-alert,
+  .ant-empty,
+  .ant-spin,
+  .ant-divider,
+  .ant-badge,
+  .ant-tag,
+  .ant-breadcrumb,
+  .ant-card-head,
+  .ant-card-extra,
+  .ant-descriptions-title,
+  .ant-modal-root,
+  .ant-dropdown,
+  .ant-tooltip,
+  .ant-popover,
+  .ant-drawer,
+  .ant-message,
+  .ant-notification,
+  .ant-table-column-sorter,
+  .ant-table-filter-trigger,
+  .ant-table-selection-column,
+  .ant-table-row-expand-icon,
+  .ant-table-measure-row,
+  .ant-table-cell-scrollbar,
+  .ant-table-placeholder {
     display: none !important;
   }
   .ant-layout-content {
@@ -151,12 +246,84 @@
     margin: 0 !important;
     border: none !important;
   }
+  .ant-spin-nested-loading,
+  .ant-spin-container {
+    height: auto !important;
+  }
   .ant-table {
-    font-size: 10pt;
+    font-size: 9pt;
   }
   .ant-table,
   .ant-table th,
   .ant-table td {
     border: 1px solid #000 !important;
+  }
+
+  /* 第 3 层：滚动容器与裁切复位——缺这步宽表右侧列一定被切掉 */
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .ant-table-wrapper,
+  .ant-table,
+  .ant-table-container,
+  .ant-table-content,
+  .ant-table-body {
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    width: auto !important;
+  }
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  /* 降级路径：让固定 layout 的表按内容重排，避免硬宽溢出 */
+  .ant-table table {
+    width: 100% !important;
+    table-layout: auto !important;
+  }
+  .ant-table col {
+    width: auto !important;
+  }
+  .ant-table th,
+  .ant-table td {
+    font-size: 8pt !important;
+  }
+  .ant-table td.num,
+  .ant-table td[style*='right'] {
+    white-space: nowrap !important;
+  }
+
+  /* 分页纪律 */
+  .sheet {
+    box-shadow: none;
+    margin: 0 auto;
+  }
+  .sheet.landscape {
+    page: sheet-landscape;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .sheet tr.total {
+    break-before: avoid;
+  }
+  .sheet:last-child {
+    break-after: auto;
+  }
+  thead {
+    break-after: avoid;
   }
 }
