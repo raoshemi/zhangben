@@ -1,10 +1,11 @@
 name: Publish images
 
-# 两个触发方式：
-#   1. 打 tag（v1.0.0 这种）→ 自动构建并推送与 tag 同名的版本镜像，用于 TrueNAS 等生产部署
-#   2. 手动运行 → 只更新 :latest，用于临时试用
+# 触发方式：
+#   1. 推送到 master → 构建并推送 :latest（TrueNAS 的 watchtower 会自动拉取部署）
+#   2. 打 tag（v1.0.0）→ 额外推送 :1.0.0 版本镜像，便于固定版本/回滚
 on:
   push:
+    branches: [master, main]
     tags:
       - 'v*'
   workflow_dispatch:
