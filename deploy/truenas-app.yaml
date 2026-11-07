@@ -1,19 +1,16 @@
-# 周会计记账系统 —— TrueNAS SCALE「自定义应用」Compose 配置
+# 周会计记账系统 —— TrueNAS SCALE「自定义应用」Compose 配置（全自动版）
 #
-# ┌─ 安装步骤 ────────────────────────────────────────────────────────────┐
-# │ 1. Datasets 先建目录（应用根目录 /mnt/main_pool/app_data/jizhang）：  │
+# ┌─ 一次性安装 ──────────────────────────────────────────────────────────┐
+# │ 1. Datasets 建目录（应用根目录 /mnt/main_pool/app_data/jizhang）：     │
 # │      /mnt/main_pool/app_data/jizhang/pgdata    （数据库数据）          │
-# │      /mnt/main_pool/app_data/jizhang/certs     （可选，SSL 证书）      │
 # │ 2. Apps → Discover Apps → Custom App → 粘贴本文件全部内容              │
-# │ 3. 修改下面 4 处 CHANGE_ME：                                          │
-# │      POSTGRES_PASSWORD / DATABASE_URL 里的同一密码 / JWT_SECRET /     │
-# │      ADMIN_PASSWORD                                                   │
-# │    JWT_SECRET 生成：openssl rand -base64 48（必须 ≥32 字符）           │
-# │ 4. 保存安装。首次启动会自动建表并创建管理员，日志里能看到引导密码       │
+# │ 3. 修改 4 处 CHANGE_ME（数据库密码/JWT_SECRET/管理员密码）             │
+# │ 4. 安装完成。此后：GitHub 打 tag/推 master → Actions 自动构建 →        │
+# │    watchtower 每 5 分钟检查并自动拉取新镜像、重启容器。无需任何手工操作 │
 # └───────────────────────────────────────────────────────────────────────┘
 #
-# 升级版本：只改下面两处 image 的版本号（backend / frontend 保持同版本），
-#           TrueNAS 里对应用点「重新部署」即可，数据卷不受影响。
+# 说明：watchtower 只更新带 enable 标签的 3 个容器（backend/frontend），
+#       数据库不会被自动重启，避免误伤。
 
 services:
   db:
@@ -33,8 +30,10 @@ services:
       retries: 20
 
   backend:
-    image: ghcr.io/raoshemi/zhangben/backend:1.0.0
+    image: ghcr.io/raoshemi/zhangben/backend:latest
     restart: unless-stopped
+    labels:
+      - 'com.centurylinklabs.watchtower.enable=true'
     environment:
       DATABASE_URL: postgresql://zhangben:CHANGE_ME_DB_PASSWORD@db:5432/zhangben?schema=public
       # 必须 ≥32 字符；缺失或过弱后端会拒绝启动（安全要求）
@@ -48,27 +47,27 @@ services:
         condition: service_healthy
 
   frontend:
-    image: ghcr.io/raoshemi/zhangben/frontend:1.0.0
+    image: ghcr.io/raoshemi/zhangben/frontend:latest
     restart: unless-stopped
-    # 自定义应用内部网络互通；3000 是给局域网/反向代理/frpc 用的入口
+    labels:
+      - 'com.centurylinklabs.watchtower.enable=true'
     ports:
       - '3000:80'
     depends_on:
       - backend
 
-  # ── 可选：本机 HTTPS 终结（如果你想让 NAS 直接对外提供 https）──────────
-  # 把证书放进 /mnt/main_pool/app_data/jizhang/certs/（fullchain.pem + privkey.pem），
-  # 然后取消下面注释。若 SSL 由公网 frps 或已有反向代理负责，请保持注释。
-  #
-  # gateway:
-  #   image: caddy:2-alpine
-  #   restart: unless-stopped
-  #   ports:
-  #     - '8443:443'
-  #   volumes:
-  #     - /mnt/main_pool/app_data/jizhang/certs:/certs:ro
-  #   command: >
-  #     caddy reverse-proxy --from :443 --to frontend:80
-  #     --tls /certs/fullchain.pem --key /certs/privkey.pem
-  #   depends_on:
-  #     - frontend
+  # 自动更新器：每 5 分钟检查镜像摘要，发现新版本自动拉取并重启上面的容器
+  watchtower:
+    image: containrrr/watchtower:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # 检查间隔（秒），300 = 5 分钟
+      WATCHTOWER_POLL_INTERVAL: 300
+      # 只更新带 enable 标签的容器，绝不碰数据库和其他应用
+      WATCHTOWER_LABEL_ENABLE: 'true'
+      # 拉取后清理旧镜像，节省空间
+      WATCHTOWER_CLEANUP: 'true'
+      # 只在中文环境输出
+      TZ: Asia/Shanghai
