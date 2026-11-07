@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import type { MenuProps } from 'antd';
 import {
   Breadcrumb,
   Button,
@@ -13,6 +12,7 @@ import {
   Tag,
   Typography,
 } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   ApartmentOutlined,
   AuditOutlined,
@@ -20,35 +20,44 @@ import {
   DashboardOutlined,
   DesktopOutlined,
   FileTextOutlined,
-  GoldOutlined,
+  FundOutlined,
   HistoryOutlined,
   LogoutOutlined,
-  PieChartOutlined,
+  NodeIndexOutlined,
   SettingOutlined,
   SwapOutlined,
   TagsOutlined,
   UserOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
-import { useRole } from '../hooks/useRole';
-import { useBook } from '../context/BookContext';
-import { STANDARD_LABEL } from '../lib/format';
+import { useBook } from '../context/BookContext';import { useRole } from '../hooks/useRole';
+import BooksEmptyHint from '../components/BooksEmptyHint';
+import BookSelect from '../components/BookSelect';
 
-const { Sider, Header, Content } = Layout;
+const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
+const ROLE_LABEL: Record<string, string> = {
+  admin: '系统管理员',
+  approver: '审核员',
+  poster: '记账员',
+  bookkeeper: '制单员',
+  accountant: '会计',
+  viewer: '查看者',
+};
+
 interface RouteMeta {
-  /** 所属分组，用于面包屑与菜单定位 */
-  group: string;
+  group?: string;
   label: string;
 }
 
 const ROUTE_META: Record<string, RouteMeta> = {
-  '/': { group: '工作台', label: '仪表盘' },
+  '/': { group: '日常核算', label: '仪表盘' },
   '/vouchers': { group: '日常核算', label: '凭证管理' },
   '/assets': { group: '日常核算', label: '固定资产' },
   '/ledgers': { group: '账簿与报表', label: '账簿查询' },
   '/reports': { group: '账簿与报表', label: '财务报表' },
-  '/closing': { group: '期末', label: '期末处理' },
+  '/closing': { group: '账簿与报表', label: '期末处理' },
   '/books': { group: '系统设置', label: '账套管理' },
   '/accounts': { group: '系统设置', label: '会计科目' },
   '/initial-balances': { group: '系统设置', label: '期初余额' },
@@ -56,51 +65,46 @@ const ROUTE_META: Record<string, RouteMeta> = {
   '/cashflow': { group: '系统设置', label: '现金流量项目' },
 };
 
-const ROLE_LABEL: Record<string, string> = {
-  admin: '系统管理员',
-  approver: '审核员',
-  poster: '记账员',
-  accountant: '会计',
-  viewer: '只读用户',
-};
-
 const SETTINGS_KEYS = ['/books', '/accounts', '/initial-balances', '/auxiliary', '/cashflow'];
+const SETTINGS_PARENT = 'settings';
 
-/**
- * 菜单分组原则（业务流 → 账簿 → 期末 → 配置）：
- * 1) 高频业务（凭证、固定资产）放最上，减少向下找菜单的点击距离；
- * 2) 查询类（账簿、报表）成组，因为它们共享「账套 + 期间」查询范式；
- * 3) 账套 / 科目 / 辅助核算 / 现金流量项目都是「全局一次性配置」，
- *    统一收进「系统设置」子菜单，不再混在业务流中。
- */
+/** 最长前缀匹配：/vouchers/12 → /vouchers，避免子路由丢失菜单高亮 */
+export function resolveMenuKey(pathname: string): string {
+  if (pathname === '/') return '/';
+  return (
+    Object.keys(ROUTE_META)
+      .filter((k) => k !== '/')
+      .sort((a, b) => b.length - a.length)
+      .find((k) => pathname === k || pathname.startsWith(`${k}/`)) ?? '/'
+  );
+}
+
 function buildMenuItems(canManageAssets: boolean): MenuProps['items'] {
   return [
     { key: '/', icon: <DashboardOutlined />, label: '工作台' },
     {
+      key: 'd',
       type: 'group',
       label: '日常核算',
       children: [
         { key: '/vouchers', icon: <FileTextOutlined />, label: '凭证管理' },
         ...(canManageAssets
-          ? [{ key: '/assets', icon: <GoldOutlined />, label: '固定资产' }]
+          ? [{ key: '/assets', icon: <WalletOutlined />, label: '固定资产' }]
           : []),
       ],
     },
     {
+      key: 'g',
       type: 'group',
       label: '账簿与报表',
       children: [
         { key: '/ledgers', icon: <HistoryOutlined />, label: '账簿查询' },
-        { key: '/reports', icon: <PieChartOutlined />, label: '财务报表' },
+        { key: '/reports', icon: <FundOutlined />, label: '财务报表' },
+        { key: '/closing', icon: <DesktopOutlined />, label: '期末处理' },
       ],
     },
     {
-      type: 'group',
-      label: '期末',
-      children: [{ key: '/closing', icon: <DesktopOutlined />, label: '期末处理' }],
-    },
-    {
-      key: 'settings',
+      key: SETTINGS_PARENT,
       icon: <SettingOutlined />,
       label: '系统设置',
       children: [
@@ -119,15 +123,25 @@ export default function MainLayout() {
   const location = useLocation();
   const { canManageAssets, role } = useRole();
   const username = localStorage.getItem('username') ?? '用户';
-  const { books, loading, bookId, setBookId, ready } = useBook();
-  const [pending, setPending] = useState<number | undefined>();
+  const { books, loading, error, bookId, setBookId, status, reload } = useBook();
   const [switchTarget, setSwitchTarget] = useState<number | null>(null);
-  // 未选中有效账套时强制选择（含账套列表为空时引导去创建）
-  const needPick = !loading && !ready;
+  const [collapsed, setCollapsed] = useState(false);
 
-  const selectedKey = location.pathname === '/' ? '/' : location.pathname;
-  const meta = ROUTE_META[selectedKey] ?? ROUTE_META['/'];
+  // 路由是菜单状态的唯一事实来源：任何入口跳转到设置页，菜单都会自动展开并高亮
+  const menuKey = resolveMenuKey(location.pathname);
+  const meta = ROUTE_META[menuKey] ?? ROUTE_META['/'];
   const menuItems = useMemo(() => buildMenuItems(canManageAssets), [canManageAssets]);
+
+  const [openKeys, setOpenKeys] = useState<string[]>(() =>
+    SETTINGS_KEYS.includes(menuKey) ? [SETTINGS_PARENT] : [],
+  );
+
+  useEffect(() => {
+    if (!SETTINGS_KEYS.includes(menuKey)) return;
+    setOpenKeys((prev) =>
+      prev.includes(SETTINGS_PARENT) ? prev : [...prev, SETTINGS_PARENT],
+    );
+  }, [menuKey]);
 
   const logout = () => {
     localStorage.removeItem('token');
@@ -150,6 +164,8 @@ export default function MainLayout() {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
         collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
         width={216}
         style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'auto' }}
       >
@@ -165,16 +181,19 @@ export default function MainLayout() {
             overflow: 'hidden',
           }}
         >
-          周会计记账系统
+          {collapsed ? '周' : '周会计记账系统'}
         </div>
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[selectedKey]}
-          defaultOpenKeys={SETTINGS_KEYS.includes(selectedKey) ? ['settings'] : []}
+          selectedKeys={[menuKey]}
+          // 折叠态必须把控制权交还 antd 的悬浮子菜单，否则系统设置点不开
+          {...(collapsed
+            ? { openKeys: [] as string[] }
+            : { openKeys, onOpenChange: (keys: string[]) => setOpenKeys(keys) })}
           items={menuItems}
           onClick={(e) => {
-            if (e.key === 'settings') return;
+            if (!e.key.startsWith('/')) return;
             navigate(e.key);
           }}
         />
@@ -203,19 +222,34 @@ export default function MainLayout() {
             ]}
           />
           <Space size={12}>
-            <Select
-              size="small"
-              value={bookId}
-              onChange={(v) => {
-                if (v === bookId) return;
-                setSwitchTarget(v);
-              }}
-              options={books.map((b) => ({ value: b.id, label: b.name }))}
-              style={{ minWidth: 170 }}
-              placeholder="选择账套"
-              loading={loading}
-              disabled={books.length === 0}
-            />
+            {status === 'error' ? (
+              <Button size="small" danger onClick={reload}>
+                账套加载失败，重试
+              </Button>
+            ) : status === 'empty' ? (
+              <Tag color="default" style={{ marginInlineEnd: 0 }}>
+                尚未创建账套
+              </Tag>
+            ) : (
+              <BookSelect
+                books={books}
+                size="middle"
+                value={status === 'ready' ? bookId : undefined}
+                onChange={(v) => {
+                  if (v == null || v === bookId) return;
+                  // 首次进入（原先没选）直接生效，不弹"切换"确认
+                  if (bookId == null) {
+                    setBookId(v);
+                    return;
+                  }
+                  setSwitchTarget(v);
+                }}
+                status={status === 'unselected' || status === 'invalid' ? 'warning' : undefined}
+                placeholder={loading ? '账套加载中…' : '请选择账套'}
+                disabled={loading}
+                style={{ minWidth: 200 }}
+              />
+            )}
             {role ? (
               <Tag color={role === 'admin' ? 'gold' : 'default'} style={{ marginInlineEnd: 0 }}>
                 {ROLE_LABEL[role] ?? role}
@@ -229,48 +263,11 @@ export default function MainLayout() {
           </Space>
         </Header>
         <Content style={{ margin: 16 }}>
+          {/* 非阻塞引导条：所有页面都可访问，这里只解释"为什么是空的 + 下一步做什么" */}
+          <BooksEmptyHint />
           <Outlet />
         </Content>
       </Layout>
-
-      <Modal
-        open={needPick}
-        title="请选择账套"
-        closable={false}
-        maskClosable={false}
-        keyboard={false}
-        okText="进入账套"
-        cancelButtonProps={{ style: { display: 'none' } }}
-        okButtonProps={{ disabled: pending == null }}
-        onOk={() => {
-          if (pending != null) setBookId(pending);
-        }}
-      >
-        {books.length === 0 ? (
-          <>
-            <p>尚未创建账套，请先到「系统设置 → 账套管理」创建。</p>
-            <Button type="primary" onClick={() => navigate('/books')}>
-              去创建账套
-            </Button>
-          </>
-        ) : (
-          <>
-            <p style={{ marginBottom: 12 }}>
-              记账是按账套连续的业务，先选择本次要操作的账套，避免串账。
-            </p>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="选择账套"
-              value={pending}
-              onChange={setPending}
-              options={books.map((b) => ({
-                value: b.id,
-                label: `${b.name}（${STANDARD_LABEL[b.accountingStandard] ?? b.accountingStandard}）`,
-              }))}
-            />
-          </>
-        )}
-      </Modal>
 
       <Modal
         open={switchTarget != null}

@@ -40,7 +40,7 @@ interface BookFormValues {
 export default function Books() {
   const { books, loading, error, reload } = useBooks(true);
   // 全局账套上下文：归档/启用后要同步刷新，顶栏切换器才能即时隐藏/显示
-  const { reload: reloadContext } = useBook();
+  const { reload: reloadContext, setBookId } = useBook();
   const { isReadOnly } = useRole();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -68,17 +68,20 @@ export default function Books() {
     }
     setSubmitting(true);
     try {
-      await api.post('/books', {
+      const { data: created } = await api.post<Book>('/books', {
         name: values.name,
         accountingStandard: values.accountingStandard,
         baseCurrency: values.baseCurrency || 'CNY',
         startDate: values.range[0].startOf('month').format('YYYY-MM-DD'),
         endDate: values.range[1].endOf('month').format('YYYY-MM-DD'),
       });
-      message.success('账套已创建，下一步：初始化会计科目');
+      message.success(`账套「${created.name}」已创建并切换`);
       setOpen(false);
       form.resetFields();
       reload();
+      // 关键：同步刷新全局上下文并自动进入新账套，否则顶栏和引导条仍认为"没有账套"
+      reloadContext();
+      setBookId(created.id);
     } catch (e) {
       message.error(errorMessage(e, '创建账套失败'));
     } finally {

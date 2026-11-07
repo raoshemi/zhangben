@@ -17,6 +17,8 @@ export interface BookSelectProps {
   showStandard?: boolean;
   style?: CSSProperties;
   size?: 'small' | 'middle' | 'large';
+  /** 未选账套时用 warning 边框持续提醒 */
+  status?: 'error' | 'warning';
 }
 
 /**
@@ -33,6 +35,7 @@ export default function BookSelect({
   showStandard = true,
   style,
   size = 'middle',
+  status,
 }: BookSelectProps) {
   const options = useMemo(
     () =>
@@ -60,6 +63,7 @@ export default function BookSelect({
       loading={loading}
       disabled={disabled}
       allowClear={allowClear}
+      status={status}
       showSearch
       optionFilterProp="name"
       optionRender={(option) => {
@@ -76,7 +80,7 @@ export default function BookSelect({
       notFoundContent={
         loading ? null : (
           <Text type="secondary" style={{ fontSize: 12, padding: 8, display: 'block' }}>
-            尚无账套，请先在「系统设置 → 账套管理」新建
+            没有匹配的账套
           </Text>
         )
       }

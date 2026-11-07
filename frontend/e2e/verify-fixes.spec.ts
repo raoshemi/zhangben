@@ -26,16 +26,13 @@ test.describe('回归验证', () => {
       test.skip(true, '仅一个账套，无法测试切换');
       return;
     }
-    // 选一个与当前不同的
-    let targetIdx = 0;
-    for (let i = 0; i < optionCount; i++) {
-      const t = (await options.nth(i).innerText()).trim();
-      if (t && !t.includes(before)) {
-        targetIdx = i;
-        break;
-      }
-    }
-    await options.nth(targetIdx).click();
+    // 选一个当前未选中的（按 antd 的选中态判断，不比较文案，避免选项渲染格式差异）
+    const unselected = page
+      .locator(
+        '.ant-select-dropdown:visible .ant-select-item-option:not(.ant-select-item-option-selected)',
+      )
+      .first();
+    await unselected.click();
 
     // 应弹出二次确认
     const modal = page.locator('.ant-modal').filter({ hasText: '切换账套' });
@@ -51,7 +48,7 @@ test.describe('回归验证', () => {
     await login(page, 'admin', 'admin123');
     for (const menu of ['凭证管理', '账簿查询', '期末处理']) {
       await gotoMenu(page, menu);
-      await expect(page.locator('main').getByText('选择账套')).toHaveCount(0);
+      await expect(page.locator('main').getByText('选择账套', { exact: true })).toHaveCount(0);
     }
   });
 
@@ -215,5 +212,39 @@ test.describe('回归验证', () => {
     await expect(
       page.getByText(/辅助明细合计|还没有「客户」辅助核算项/).first(),
     ).toBeVisible({ timeout: 8000 });
+  });
+
+  test('无账套时：不弹遮罩、页面可访问、菜单自动展开并高亮', async ({ page }) => {
+    // 模拟"一个账套都没有"的初始状态
+    await page.route('**/api/books', (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: '[]',
+        });
+      }
+      return route.continue();
+    });
+    await login(page, 'admin', 'admin123');
+
+    // 1) 没有强制选择弹窗
+    await expect(
+      page.locator('.ant-modal').filter({ hasText: '请选择账套' }),
+    ).toHaveCount(0);
+    // 2) 有非阻塞引导
+    await expect(page.getByText('尚未创建账套').first()).toBeVisible();
+    // 3) 其它页面仍可访问，且显示"请先建账套"而非"没有数据"
+    await gotoMenu(page, '期初余额');
+    await expect(page.getByRole('heading', { name: '期初余额' })).toBeVisible();
+    await expect(page.getByText(/还没有账套|请选择要操作的账套/).first()).toBeVisible();
+    // 4) 跳到账套管理后，系统设置自动展开且账套管理高亮
+    await gotoMenu(page, '账套管理');
+    await expect(
+      page.locator('.ant-menu-submenu-open').filter({ hasText: '系统设置' }),
+    ).toHaveCount(1);
+    await expect(
+      page.locator('.ant-menu-item-selected').filter({ hasText: '账套管理' }),
+    ).toHaveCount(1);
   });
 });

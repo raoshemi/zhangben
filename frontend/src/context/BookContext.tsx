@@ -12,6 +12,18 @@ import type { Book } from '../hooks/useBooks';
 
 const STORAGE_KEY = 'selectedBookId';
 
+/**
+ * 账套状态机：把「没有账套」「有账套但没选」「选中的已失效」「加载失败」彻底分开。
+ * 之前这些都被混成 ready=false，导致各页面把"没权限/没数据/没选"显示成同一种空态。
+ */
+export type BookStatus =
+  | 'loading'
+  | 'error'
+  | 'empty'
+  | 'unselected'
+  | 'invalid'
+  | 'ready';
+
 export interface BookContextValue {
   books: Book[];
   loading: boolean;
@@ -19,10 +31,12 @@ export interface BookContextValue {
   /** 全局当前账套 ID（持久化到 localStorage） */
   bookId: number | undefined;
   book: Book | undefined;
-  setBookId: (id: number | undefined) => void;
+  setBookId: (id?: number) => void;
   reload: () => void;
   /** 是否已选中一个仍存在的账套 */
   ready: boolean;
+  /** 明细状态（页面用它决定空态种类） */
+  status: BookStatus;
 }
 
 const BookContext = createContext<BookContextValue>({
@@ -35,6 +49,7 @@ const BookContext = createContext<BookContextValue>({
   setBookId: () => {},
   reload: () => {},
   ready: true,
+  status: 'ready',
 });
 
 /**
@@ -51,27 +66,63 @@ export function BookProvider({ children }: { children: ReactNode }) {
     return Number.isFinite(n) && n > 0 ? n : undefined;
   });
 
-  // 持久化的账套可能已被删除：失效则清空，回到"必须选择"状态
+  // 只有一个账套时自动选中：不必让用户在唯一选项上做一次选择
   useEffect(() => {
-    if (loading) return;
+    if (loading || error) return;
+    if (books.length === 1 && bookId == null) {
+      setBookIdState(books[0].id);
+      localStorage.setItem(STORAGE_KEY, String(books[0].id));
+    }
+  }, [books, loading, error, bookId]);
+
+  // 持久化的账套可能已被归档/删除：失效则清空选择。
+  // 注意 books.length > 0 守卫不能去掉：新建账套后会先 setBookId 再等列表刷新，
+  // 中间有一帧 books 为空，去掉守卫会把刚选中的账套清掉。
+  useEffect(() => {
+    if (loading || error) return;
     if (bookId != null && books.length > 0 && !books.some((b) => b.id === bookId)) {
       setBookIdState(undefined);
       localStorage.removeItem(STORAGE_KEY);
     }
-  }, [books, loading, bookId]);
+  }, [books, loading, error, bookId]);
 
-  const setBookId = useCallback((id: number | undefined) => {
-    if (id == null) return;
+  const setBookId = useCallback((id?: number) => {
+    if (id == null) {
+      setBookIdState(undefined);
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
     setBookIdState(id);
     localStorage.setItem(STORAGE_KEY, String(id));
   }, []);
 
   const book = books.find((b) => b.id === bookId);
   const ready = bookId != null && !!book;
+  const status: BookStatus = loading
+    ? 'loading'
+    : error
+      ? 'error'
+      : books.length === 0
+        ? 'empty'
+        : bookId == null
+          ? 'unselected'
+          : ready
+            ? 'ready'
+            : 'invalid';
 
   const value = useMemo<BookContextValue>(
-    () => ({ books, loading, error, bookId, book, setBookId, reload, ready }),
-    [books, loading, error, bookId, book, setBookId, reload, ready],
+    () => ({
+      books,
+      loading,
+      error,
+      bookId,
+      book,
+      setBookId,
+      reload,
+      ready,
+      status,
+    }),
+    [books, loading, error, bookId, book, setBookId, reload, ready, status],
   );
 
   return <BookContext.Provider value={value}>{children}</BookContext.Provider>;
