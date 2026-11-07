@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateBookDto,
@@ -79,6 +80,95 @@ export class AccountsService {
       await tx.accountBook.delete({ where: { id } });
     });
     return { ok: true };
+  }
+
+  /**
+   * 期初余额录入（期初建账）。
+   *
+   * 规则与金蝶/用友一致：
+   * 1) 只能录明细科目（叶子科目）；
+   * 2) Σ期初借方 = Σ期初贷方（试算平衡），否则拒绝保存；
+   * 3) 一旦该账套已有「已记账」凭证，期初锁定（需先反记账/反结账）。
+   */
+  async saveInitialBalances(
+    bookId: number,
+    items: { accountId: number; initialDebit?: string; initialCredit?: string }[],
+  ) {
+    await this.getBook(bookId);
+
+    const posted = await this.prisma.voucher.count({
+      where: { bookId, status: 'posted' },
+    });
+    if (posted > 0) {
+      throw new BadRequestException(
+        `该账套已有 ${posted} 张已记账凭证，期初余额已锁定；如需修改请先反记账`,
+      );
+    }
+
+    const accounts = await this.prisma.account.findMany({ where: { bookId } });
+    const byId = new Map(accounts.map((a) => [a.id, a]));
+
+    let totalDebit = new Prisma.Decimal(0);
+    let totalCredit = new Prisma.Decimal(0);
+    const updates: {
+      accountId: number;
+      initialDebit: string;
+      initialCredit: string;
+    }[] = [];
+
+    for (const it of items) {
+      const account = byId.get(it.accountId);
+      if (!account) {
+        throw new BadRequestException(`科目 ${it.accountId} 不属于当前账套`);
+      }
+      if (!account.isLeaf) {
+        throw new BadRequestException(
+          `「${account.code} ${account.name}」不是明细科目，只能录明细科目的期初余额`,
+        );
+      }
+      const debit = this.toAmount(it.initialDebit, `${account.code} 期初借方`);
+      const credit = this.toAmount(it.initialCredit, `${account.code} 期初贷方`);
+      totalDebit = totalDebit.plus(debit);
+      totalCredit = totalCredit.plus(credit);
+      updates.push({
+        accountId: it.accountId,
+        initialDebit: debit.toFixed(2),
+        initialCredit: credit.toFixed(2),
+      });
+    }
+
+    if (!totalDebit.equals(totalCredit)) {
+      throw new BadRequestException(
+        `期初余额借贷不平衡：借方合计 ${totalDebit.toFixed(2)} ≠ 贷方合计 ${totalCredit.toFixed(2)}`,
+      );
+    }
+
+    await this.prisma.$transaction(
+      updates.map((u) =>
+        this.prisma.account.update({
+          where: { id: u.accountId },
+          data: {
+            initialDebit: u.initialDebit,
+            initialCredit: u.initialCredit,
+          },
+        }),
+      ),
+    );
+
+    return {
+      ok: true,
+      totalDebit: totalDebit.toFixed(2),
+      totalCredit: totalCredit.toFixed(2),
+    };
+  }
+
+  private toAmount(value: string | undefined, label: string): Prisma.Decimal {
+    if (value == null || String(value).trim() === '') return new Prisma.Decimal(0);
+    const s = String(value).replace(/,/g, '').trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(s)) {
+      throw new BadRequestException(`${label}格式不正确（最多两位小数、不能为负）`);
+    }
+    return new Prisma.Decimal(s);
   }
 
   async createBook(dto: CreateBookDto) {

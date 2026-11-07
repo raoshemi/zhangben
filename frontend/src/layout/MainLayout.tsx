@@ -15,6 +15,7 @@ import {
 } from 'antd';
 import {
   ApartmentOutlined,
+  AuditOutlined,
   BookOutlined,
   DashboardOutlined,
   DesktopOutlined,
@@ -50,6 +51,7 @@ const ROUTE_META: Record<string, RouteMeta> = {
   '/closing': { group: '期末', label: '期末处理' },
   '/books': { group: '系统设置', label: '账套管理' },
   '/accounts': { group: '系统设置', label: '会计科目' },
+  '/initial-balances': { group: '系统设置', label: '期初余额' },
   '/auxiliary': { group: '系统设置', label: '辅助核算' },
   '/cashflow': { group: '系统设置', label: '现金流量项目' },
 };
@@ -62,7 +64,7 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: '只读用户',
 };
 
-const SETTINGS_KEYS = ['/books', '/accounts', '/auxiliary', '/cashflow'];
+const SETTINGS_KEYS = ['/books', '/accounts', '/initial-balances', '/auxiliary', '/cashflow'];
 
 /**
  * 菜单分组原则（业务流 → 账簿 → 期末 → 配置）：
@@ -104,6 +106,7 @@ function buildMenuItems(canManageAssets: boolean): MenuProps['items'] {
       children: [
         { key: '/books', icon: <BookOutlined />, label: '账套管理' },
         { key: '/accounts', icon: <ApartmentOutlined />, label: '会计科目' },
+        { key: '/initial-balances', icon: <AuditOutlined />, label: '期初余额' },
         { key: '/auxiliary', icon: <TagsOutlined />, label: '辅助核算' },
         { key: '/cashflow', icon: <SwapOutlined />, label: '现金流量项目' },
       ],

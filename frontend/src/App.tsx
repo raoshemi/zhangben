@@ -15,6 +15,7 @@ import Reports from './pages/Reports';
 import Assets from './pages/Assets';
 import VoucherPrint from './pages/VoucherPrint';
 import ReportPrint from './pages/ReportPrint';
+import InitialBalances from './pages/InitialBalances';
 import { useRole } from './hooks/useRole';
 import { BookProvider } from './context/BookContext';
 
@@ -66,6 +67,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="books" element={<Books />} />
         <Route path="accounts" element={<Accounts />} />
+        <Route path="initial-balances" element={<InitialBalances />} />
         <Route path="auxiliary" element={<Auxiliary />} />
         <Route path="cashflow" element={<CashFlow />} />
         <Route path="vouchers" element={<VoucherList />} />

@@ -6,7 +6,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateBookDto {
   @IsString()
@@ -92,6 +95,34 @@ export class UpdateAccountDto {
   @IsOptional()
   @IsArray()
   auxFlags?: string[];
+}
+
+/** 期初余额单条（按科目天然方向录入：借方科目填 initialDebit，贷方科目填 initialCredit） */
+export class InitialBalanceItemDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  accountId: number;
+
+  @IsOptional()
+  @IsString()
+  initialDebit?: string;
+
+  @IsOptional()
+  @IsString()
+  initialCredit?: string;
+}
+
+export class SaveInitialBalancesDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  bookId: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InitialBalanceItemDto)
+  items: InitialBalanceItemDto[];
 }
 
 export class CreateAuxiliaryDto {

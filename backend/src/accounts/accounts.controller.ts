@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
@@ -14,6 +15,7 @@ import {
   CreateBookDto,
   CreateAccountDto,
   CreateAuxiliaryDto,
+  SaveInitialBalancesDto,
   UpdateBookDto,
   UpdateAccountDto,
 } from './dto';
@@ -71,6 +73,13 @@ export class AccountsController {
   @Get('accounts')
   listAccounts(@Query('bookId', ParseIntPipe) bookId: number) {
     return this.service.listAccounts(bookId);
+  }
+
+  /** 期初余额录入（期初建账）：整体保存，校验借贷平衡 + 只能明细科目 + 已记账锁定 */
+  @Roles('admin', 'bookkeeper')
+  @Put('accounts/initial-balances')
+  saveInitialBalances(@Body() dto: SaveInitialBalancesDto) {
+    return this.service.saveInitialBalances(dto.bookId, dto.items);
   }
 
   @Roles('admin')

@@ -4,7 +4,13 @@ import { Page, expect } from '@playwright/test';
  * 收在「系统设置」子菜单下的全局配置页面。
  * 菜单分组调整后，这些页面的入口需要先展开「系统设置」。
  */
-const SETTINGS_ITEMS = ['账套管理', '会计科目', '辅助核算', '现金流量项目'];
+const SETTINGS_ITEMS = [
+  '账套管理',
+  '会计科目',
+  '期初余额',
+  '辅助核算',
+  '现金流量项目',
+];
 
 export async function login(page: Page, username: string, password: string) {
   await page.goto('/login');
