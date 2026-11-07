@@ -1,7 +1,12 @@
 name: Publish images
 
-# 仅手动触发：只有想用 GHCR 镜像方式时才在 Actions 里点运行，否则不会白跑构建
+# 两个触发方式：
+#   1. 打 tag（v1.0.0 这种）→ 自动构建并推送与 tag 同名的版本镜像，用于 TrueNAS 等生产部署
+#   2. 手动运行 → 只更新 :latest，用于临时试用
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -12,6 +17,15 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: 计算镜像版本
+        id: meta
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=latest" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: docker/setup-buildx-action@v3
 
@@ -27,14 +41,18 @@ jobs:
           context: ./backend
           target: runtime
           push: true
-          tags: ghcr.io/${{ github.repository }}/backend:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:latest
+            ghcr.io/${{ github.repository }}/backend:${{ steps.meta.outputs.version }}
 
       - name: Build & push 前端镜像
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
-          tags: ghcr.io/${{ github.repository }}/frontend:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/frontend:latest
+            ghcr.io/${{ github.repository }}/frontend:${{ steps.meta.outputs.version }}
 
       - name: Build & push 迁移镜像
         uses: docker/build-push-action@v6
@@ -42,4 +60,6 @@ jobs:
           context: ./backend
           target: migrate
           push: true
-          tags: ghcr.io/${{ github.repository }}/migrate:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/migrate:latest
+            ghcr.io/${{ github.repository }}/migrate:${{ steps.meta.outputs.version }}
